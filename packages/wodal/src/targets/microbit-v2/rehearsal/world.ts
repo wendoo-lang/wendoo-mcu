@@ -139,6 +139,19 @@ const MAX_BRIGHTNESS = 255;
 /** The value the speaker channel reports while nothing is playing. */
 const SPEAKER_IDLE = "idle";
 
+/** What separates the sound the speaker reports from the count of starts behind it. */
+const SPEAKER_PLAY_MARK = "#";
+
+/**
+ * The sound the speaker stands at, taken from the value the channel reports:
+ * the name alone, without the count of starts behind it, so playing the same
+ * sound again leaves the speaker where it was.
+ */
+function speakerSound(reported: string): string {
+  const mark = reported.indexOf(SPEAKER_PLAY_MARK);
+  return mark === -1 ? reported : reported.slice(0, mark);
+}
+
 /**
  * Every state channel this target reports of the device, in the order a delta
  * lists them.
@@ -152,6 +165,7 @@ export const STATE_CHANNELS: readonly SubjectStateChannel[] = [
   {
     name: SPEAKER_CHANNEL,
     description: `The sound playing right now, as its name followed by \`#\` and a number that counts up each time a sound starts, or \`${SPEAKER_IDLE}\` while nothing is playing.`,
+    identityValue: speakerSound,
   },
 ];
 

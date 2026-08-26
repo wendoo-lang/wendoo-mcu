@@ -1,4 +1,9 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    // The base pins its own buildinfo path, which this program must not
+    // share; keep prod's pre-rename default.
+    "tsBuildInfoFile": "tsconfig.prod.tsbuildinfo"
+  },
   "references": []
 }

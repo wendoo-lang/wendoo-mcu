@@ -72,6 +72,25 @@ describe("the state channels this target declares", () => {
     );
     for (const channel of channels) assert.ok(channel.description.trim().length > 0);
   });
+
+  test("leaves the speaker standing at the sound itself, however often that sound has started", () => {
+    const speaker = createTargetAdapter(FAKE_TARGET_IDENTITY)
+      .stateChannels()
+      .find((channel) => channel.name === "speaker");
+
+    assert.ok(speaker?.identityValue, "the speaker says what it contributes");
+    assert.equal(speaker.identityValue("giggle#1"), speaker.identityValue("giggle#7"));
+    assert.notEqual(speaker.identityValue("giggle#1"), speaker.identityValue("hello#1"));
+    assert.notEqual(speaker.identityValue("giggle#1"), speaker.identityValue("idle"));
+  });
+
+  test("leaves the screen standing at what it shows, which it reports whole", () => {
+    const display = createTargetAdapter(FAKE_TARGET_IDENTITY)
+      .stateChannels()
+      .find((channel) => channel.name === "display");
+
+    assert.equal(display?.identityValue, undefined);
+  });
 });
 
 describe("what a rehearsal records of the screen", () => {

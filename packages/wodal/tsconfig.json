@@ -1,21 +1,11 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
-    "moduleResolution": "bundler",
-    "composite": true,
-    "declaration": true,
-    "declarationMap": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "preserveSymlinks": true
-  },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+  // Solution-style index of this package's projects. The build program
+  // lives in tsconfig.build.json (invoked explicitly by the build and
+  // typecheck scripts); spec files are excluded from it, so the editor
+  // finds their project through the reference here. This file is built by
+  // nothing -- it exists so tsserver can place every file in a real
+  // project. Package-local by necessity: wodal is post-processed, and no
+  // config outside the package may reference into it.
+  "files": [],
+  "references": [{ "path": "./tsconfig.build.json" }, { "path": "./tsconfig.spec.json" }]
 }
