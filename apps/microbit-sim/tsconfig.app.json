@@ -21,6 +21,8 @@
     /* Path mapping */
     "paths": {
       "@/*": ["./src/*"],
+      "react": ["./node_modules/@types/react", "./node_modules/react"],
+      "react-dom": ["./node_modules/@types/react-dom", "./node_modules/react-dom"],
       "@wendoo/assistant-panel": ["../../external/wendoo-lang/packages/assistant-panel/src/index.ts"],
       "@wendoo/assistant-panel/*": ["../../external/wendoo-lang/packages/assistant-panel/src/*"],
       "@wendoo/ui": ["../../external/wendoo-lang/packages/ui/src/index.ts"],
