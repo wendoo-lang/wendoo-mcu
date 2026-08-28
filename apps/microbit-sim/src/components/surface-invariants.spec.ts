@@ -156,3 +156,15 @@ describe("the brain editor cannot undo a brain's creation", () => {
     assert.doesNotMatch(source, /removeBrain/);
   });
 });
+
+describe("the brain the assistant panel draws and navigates against", () => {
+  const panelSource = componentSource("AssistantSidePanel.tsx");
+
+  test("AssistantSidePanel.tsx builds the places from the brain the editor stands", () => {
+    assert.match(panelSource, /brainPlacesOf\(edited, workspaces\)/);
+  });
+
+  test("AssistantSidePanel.tsx hands those places to the conversation surface", () => {
+    assert.match(panelSource, /brainPlaces=\{brainPlaces\}/);
+  });
+});
