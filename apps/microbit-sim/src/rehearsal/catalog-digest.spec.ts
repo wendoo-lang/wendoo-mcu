@@ -7,7 +7,7 @@ import { describe, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { TargetAdapter } from "@wendoo/assistant-bridge";
 import { catalogDigest } from "@wendoo/assistant-bridge";
-import { installedTiles } from "@wendoo/assistant-panel";
+import { environmentTiles } from "@wendoo/assistant-panel";
 import { build } from "esbuild";
 import { MICROBIT_V2_TARGET_COORDINATE } from "../services/microbit-extension-coordinates";
 
@@ -63,7 +63,7 @@ async function importModule(code: string): Promise<{ createTargetAdapter: (ident
  * model, without the tiles any one document mints for itself.
  */
 function digestOf(adapter: TargetAdapter) {
-  return catalogDigest(installedTiles(adapter));
+  return catalogDigest(environmentTiles(adapter));
 }
 
 describe("the tile catalog this target states to the model", () => {
