@@ -4,7 +4,9 @@
 
 # In background
 
-Runs the show or sound without making the rule wait.
+Runs the show or sound just as usual, but the rule does not wait for it: the
+rule carries on at once and can fire again, while the display or speaker stays
+busy until this one finishes.
 
 ---
 

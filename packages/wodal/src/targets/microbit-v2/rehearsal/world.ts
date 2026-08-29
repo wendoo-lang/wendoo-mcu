@@ -96,7 +96,7 @@ const PERCEPTS: Readonly<Record<string, Percept>> = {
   },
   gesture: {
     description:
-      'How the device is being moved, named exactly: "shake", "freefall", "tilt up", "tilt down", "tilt left", "tilt right", "face up", "face down", or "none" to set it back down. A shake or a freefall plays once and takes a few thinks to be felt; a tilt or a face holds until another entry changes it.',
+      'How the device is being moved, named exactly: "shake", "freefall", "tilt up", "tilt down", "tilt left", "tilt right", "face up", "face down", or "none" to set it back down. A shake or a freefall plays once; a tilt or a face holds until another entry changes it. Either way it takes several thinks of being held before it is felt.',
     apply: (stage, value) => stage.gestures.select(GESTURE_NAMES[String(value)] ?? AccelerometerGesture.None),
   },
   "radio-message-number": {

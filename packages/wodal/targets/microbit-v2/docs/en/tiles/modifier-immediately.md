@@ -4,7 +4,8 @@
 
 # Immediately
 
-Takes over the display or speaker at once.
+Takes over the display or speaker at once, cutting off whatever was showing or
+playing.
 
 ---
 

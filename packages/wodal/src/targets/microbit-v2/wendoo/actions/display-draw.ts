@@ -162,5 +162,9 @@ export default {
   callDef,
   fn: { exec: execDrawImage },
   isAsync: true,
-  metadata: { label: "draw image" },
+  metadata: {
+    label: "draw image",
+    grammarNote:
+      'The rule holds until the image has finished showing: until then a rule under it does not get its turn, and this rule cannot fire again. A draw asked for while the display is busy is dropped; add "in background" to let the rule carry on, or "immediately" to cut off what the display is showing.',
+  },
 } satisfies CreateHostActuatorOptions;
