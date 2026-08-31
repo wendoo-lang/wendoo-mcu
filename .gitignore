@@ -48,3 +48,6 @@ __pycache__/
 generated-docs/*
 
 .vscode-test-web
+
+# Claude Code preview-server config (machine-local)
+.claude/launch.json
