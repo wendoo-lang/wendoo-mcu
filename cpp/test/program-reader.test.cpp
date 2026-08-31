@@ -440,7 +440,10 @@ TEST_CASE("a TYPS child at or beyond its parent fails TypeForwardReference") {
 }
 
 TEST_CASE("a TYPS atom outside the core and target ranges fails UnknownTypeAtom") {
-  for (const uint32_t atomId : {12u, 999u, 1041u, 0xffffffffu}) {
+  // The target range ends at the next unassigned target atom id.
+  const uint32_t pastTargetRange =
+      wendoo::TARGET_TYPE_ATOM_BASE + wendoo::kMicroBitV2TypeAtomIdCount;
+  for (const uint32_t atomId : {12u, 999u, pastTargetRange, 0xffffffffu}) {
     WireBuilder w = programHeader();
     w.varUint(0).varUint(0);            // CSTR
     w.varUint(1).u8(0).varUint(atomId); // TYPS atom

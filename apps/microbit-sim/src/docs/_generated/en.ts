@@ -71,6 +71,190 @@ the sound finishes, and a play made while the speaker is busy is dropped; add
 once, or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule
 continue without waiting.
 `,
+  "actuator-play-tone": `\`\`\`brain noframe do
+{ "tile": "\${tileId}" }
+\`\`\`
+
+# Beep
+
+Plays a plain tone on the speaker.
+
+---
+
+Holds one steady pitch for a set time -- the classic feedback beep. The bare
+number is the pitch in Hz, 880 when left off; a pitch of 0 is a rest, silent
+for the whole time while still holding the speaker, so beeps and gaps can be
+built from the one tile. \`tile:tile.parameter->microbit-v2.duration\` sets how
+long the tone lasts in seconds (0.5 when left off, fractions allowed) and
+\`tile:tile.parameter->microbit-v2.volume\` sets how loud it is, from 0 to 1 (1
+when left off). Add one wave shape -- \`tile:tile.modifier->microbit-v2.square\`,
+\`tile:tile.modifier->microbit-v2.sawtooth\`,
+\`tile:tile.modifier->microbit-v2.sine\`, or
+\`tile:tile.modifier->microbit-v2.triangle\` -- to change the character of the
+tone; with none of them it is a triangle wave. The rule waits until the tone
+ends, and a beep made while the speaker is busy is dropped; add
+\`tile:tile.modifier->microbit-v2.immediately\` to take over the speaker at once,
+or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule continue
+without waiting.
+
+## Example
+
+A short, quiet beep as feedback for a button press. It uses
+\`tile:tile.modifier->microbit-v2.in-background\` so the rule can fire again on
+the next press without waiting for the tone.
+
+\`\`\`brain
+{
+  "ruleJsons": [
+    {
+      "version": 1,
+      "when": [
+        "tile.sensor->microbit-v2.button-a",
+        "tile.modifier->microbit-v2.pressed"
+      ],
+      "do": [
+        "\${tileId}",
+        "tile.literal->number:<number>->440",
+        "tile.parameter->microbit-v2.duration",
+        "tile.literal->number:<number>->0.1",
+        "tile.parameter->microbit-v2.volume",
+        "tile.literal->number:<number>->0.3",
+        "tile.modifier->microbit-v2.in-background"
+      ],
+      "children": [],
+      "comment": "A quiet 440 Hz blip, without holding up the rule."
+    }
+  ],
+  "catalog": [
+    {
+      "version": 2,
+      "kind": "literal",
+      "tileId": "tile.literal->number:<number>->440",
+      "valueType": "number:<number>",
+      "value": 440,
+      "valueLabel": "440",
+      "displayFormat": "default"
+    },
+    {
+      "version": 2,
+      "kind": "literal",
+      "tileId": "tile.literal->number:<number>->0.1",
+      "valueType": "number:<number>",
+      "value": 0.1,
+      "valueLabel": "0.1",
+      "displayFormat": "default"
+    },
+    {
+      "version": 2,
+      "kind": "literal",
+      "tileId": "tile.literal->number:<number>->0.3",
+      "valueType": "number:<number>",
+      "value": 0.3,
+      "valueLabel": "0.3",
+      "displayFormat": "default"
+    }
+  ]
+}
+\`\`\`
+
+## Example: a beep, a rest, a higher beep
+
+Each rule waits for its own tone, so nesting them plays them one after another.
+The middle tone is a rest: a pitch of 0 sounds nothing but still takes its
+0.15 seconds, which is the gap between the two beeps.
+
+\`\`\`brain
+{
+  "ruleJsons": [
+    {
+      "version": 1,
+      "when": [
+        "tile.sensor->microbit-v2.button-b",
+        "tile.modifier->microbit-v2.pressed"
+      ],
+      "do": [
+        "\${tileId}",
+        "tile.literal->number:<number>->660",
+        "tile.parameter->microbit-v2.duration",
+        "tile.literal->number:<number>->0.15"
+      ],
+      "children": [
+        {
+          "version": 1,
+          "when": [],
+          "do": [
+            "\${tileId}",
+            "tile.literal->number:<number>->0",
+            "tile.parameter->microbit-v2.duration",
+            "tile.literal->number:<number>->0.15"
+          ],
+          "children": [
+            {
+              "version": 1,
+              "when": [],
+              "do": [
+                "\${tileId}",
+                "tile.literal->number:<number>->990",
+                "tile.parameter->microbit-v2.duration",
+                "tile.literal->number:<number>->0.15"
+              ],
+              "children": [],
+              "comment": "Then a higher beep."
+            }
+          ],
+          "comment": "A rest: silent, but it still takes 0.15 seconds."
+        }
+      ],
+      "comment": "First beep."
+    }
+  ],
+  "catalog": [
+    {
+      "version": 2,
+      "kind": "literal",
+      "tileId": "tile.literal->number:<number>->660",
+      "valueType": "number:<number>",
+      "value": 660,
+      "valueLabel": "660",
+      "displayFormat": "default"
+    },
+    {
+      "version": 2,
+      "kind": "literal",
+      "tileId": "tile.literal->number:<number>->990",
+      "valueType": "number:<number>",
+      "value": 990,
+      "valueLabel": "990",
+      "displayFormat": "default"
+    },
+    {
+      "version": 2,
+      "kind": "literal",
+      "tileId": "tile.literal->number:<number>->0",
+      "valueType": "number:<number>",
+      "value": 0,
+      "valueLabel": "0",
+      "displayFormat": "default"
+    },
+    {
+      "version": 2,
+      "kind": "literal",
+      "tileId": "tile.literal->number:<number>->0.15",
+      "valueType": "number:<number>",
+      "value": 0.15,
+      "valueLabel": "0.15",
+      "displayFormat": "default"
+    }
+  ]
+}
+\`\`\`
+
+## See Also
+
+\`tile:tile.actuator->microbit-v2.play-sound\`
+\`tile:tile.parameter->microbit-v2.duration\`
+\`tile:tile.parameter->microbit-v2.volume\`
+`,
   "actuator-radio-send": `\`\`\`brain noframe do
 { "tile": "\${tileId}" }
 \`\`\`
@@ -477,6 +661,22 @@ Reacts the moment a button comes back up.
 Attach to a button tile such as \`tile:tile.sensor->microbit-v2.button-a\`: the
 rule fires on the think the button is let go.
 `,
+  "modifier-sawtooth": `\`\`\`brain noframe do
+{ "tile": "\${tileId}" }
+\`\`\`
+
+# Sawtooth
+
+Gives a beep a bright, brassy sawtooth wave.
+
+---
+
+Attach to \`tile:tile.actuator->microbit-v2.play-tone\`: the tone is sounded as a
+sawtooth wave, which climbs and then drops straight back and gives a bright,
+buzzy edge -- softer than
+\`tile:tile.modifier->microbit-v2.square\` but far from smooth. Use at most one
+wave shape per beep; with none the beep is a triangle wave.
+`,
   "modifier-shake": `\`\`\`brain noframe when
 { "tile": "\${tileId}" }
 \`\`\`
@@ -489,6 +689,36 @@ Detects the micro:bit being shaken.
 
 Attach to \`tile:tile.sensor->microbit-v2.gesture\` to detect shaking. This is
 also what a bare gesture tile detects.
+`,
+  "modifier-sine": `\`\`\`brain noframe do
+{ "tile": "\${tileId}" }
+\`\`\`
+
+# Sine
+
+Gives a beep a smooth, mellow sine wave.
+
+---
+
+Attach to \`tile:tile.actuator->microbit-v2.play-tone\`: the tone is sounded as a
+sine wave, the plainest shape there is, so the beep comes out soft and round
+rather than buzzy. Use at most one wave shape per beep; with none the beep is a
+triangle wave.
+`,
+  "modifier-square": `\`\`\`brain noframe do
+{ "tile": "\${tileId}" }
+\`\`\`
+
+# Square
+
+Gives a beep a hard, buzzy square wave.
+
+---
+
+Attach to \`tile:tile.actuator->microbit-v2.play-tone\`: the tone is sounded as a
+square wave, which jumps straight between loud and quiet and gives the sharp,
+retro-game buzz. Use at most one wave shape per beep; with none the beep is a
+triangle wave.
 `,
   "modifier-tilt-down": `\`\`\`brain noframe when
 { "tile": "\${tileId}" }
@@ -545,6 +775,23 @@ Detects the micro:bit tilted up.
 Attach to \`tile:tile.sensor->microbit-v2.gesture\`: the rule fires while the
 board is tilted up. It stays true for as long as the board is held in that
 position.
+`,
+  "modifier-triangle": `\`\`\`brain noframe do
+{ "tile": "\${tileId}" }
+\`\`\`
+
+# Triangle
+
+Gives a beep a soft, hollow triangle wave.
+
+---
+
+Attach to \`tile:tile.actuator->microbit-v2.play-tone\`: the tone is sounded as a
+triangle wave, which rises and falls in straight lines and sits between
+\`tile:tile.modifier->microbit-v2.sine\` and
+\`tile:tile.modifier->microbit-v2.square\` -- soft, with a hollow, flute-like
+edge. This is what a beep uses when no wave shape is attached, so add it only
+to say so plainly. Use at most one wave shape per beep.
 `,
   "output-buffer-value": `\`\`\`brain noframe do
 { "tile": "\${tileId}" }
@@ -719,6 +966,22 @@ The text to show on the display.
 Gives \`tile:tile.actuator->microbit-v2.display-scroll\` the text to scroll.
 When left off, the actuator shows the value the WHEN side produced, or
 "hello".
+`,
+  "parameter-volume": `\`\`\`brain noframe do
+{ "tile": "\${tileId}" }
+\`\`\`
+
+# Volume
+
+How loud a tone is, from 0 to 1.
+
+---
+
+Gives \`tile:tile.actuator->microbit-v2.play-tone\` its loudness as a fraction of
+full: 1 is as loud as the tone gets, 0.5 is half, and 0 is silent. When left
+off, the tone plays at 1. A silent tone still holds the speaker for its whole
+\`tile:tile.parameter->microbit-v2.duration\`. The device's own volume setting
+still applies on top of this.
 `,
   "parameter-x": `\`\`\`brain noframe do
 { "tile": "\${tileId}" }

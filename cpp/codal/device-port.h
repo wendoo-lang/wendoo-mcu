@@ -98,9 +98,41 @@ public:
   virtual int getLightLevel() = 0;
 };
 
+/** Oscillator wave shape of a plain constant-pitch tone. */
+enum class SpeakerToneWaveform : uint8_t {
+  Square = 0,
+  Sawtooth = 1,
+  Sine = 2,
+  Triangle = 3,
+};
+
 /**
- * Speaker sound output: a single output leased by the playing sound. The
- * lease is resolved against logical tick time from the sound's nominal total
+ * A plain constant-pitch tone as accepted by the speaker port: one wave shape
+ * at one frequency for one duration.
+ */
+struct SpeakerToneCommand {
+  /** Wave shape the tone is sounded with. */
+  SpeakerToneWaveform waveform;
+
+  /**
+   * Pitch in Hz, clamped into the board's usable range. Zero is a rest and
+   * carries a zero {@link volume}.
+   */
+  mc_number_t frequencyHz;
+
+  /**
+   * Play length in whole milliseconds. A negative length marks a dropped tone:
+   * {@link SpeakerPort::playTone} sounds nothing and settles at once.
+   */
+  int32_t durationMs;
+
+  /** Volume as a fraction of full tone volume, 0 to 1. */
+  mc_number_t volume;
+};
+
+/**
+ * Speaker sound output: a single output leased by the playing sound or tone.
+ * The lease is resolved against logical tick time from the play's nominal total
  * duration, never from a device-driver completion event.
  */
 class SpeakerPort {
@@ -118,6 +150,18 @@ public:
    */
   virtual void playSoundEmoji(const uint8_t* name, uint32_t length, mc_number_t requestTimeMs,
                               AsyncHandle handle) = 0;
+
+  /**
+   * Sound the constant-pitch `tone`, requested at logical tick time
+   * `requestTimeMs`. The call returns immediately. An accepted tone takes the
+   * speaker lease for `tone.durationMs` and settles `handle` (resolve) once it
+   * elapses. A tone requested while the speaker is busy is silently dropped:
+   * nothing sounds and `handle` settles at once. A negative
+   * `tone.durationMs` is dropped the same way; a zero one is accepted and
+   * settles on the first lease settle.
+   */
+  virtual void playTone(const SpeakerToneCommand& tone, mc_number_t requestTimeMs,
+                        AsyncHandle handle) = 0;
 
   /**
    * Release the current speaker lease at once: the held play stops and its

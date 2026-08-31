@@ -4,7 +4,11 @@
 #include "codal/shared-type-atom-id.h"
 #include "core/runtime/context-field.h"
 #include "core/runtime/core-type-atom-id.h"
+#include "core/runtime/handle-table.h"
+#include "core/runtime/managed-heap.h"
+#include "core/runtime/region-arena.h"
 #include "targets/microbit-v2/abi/host-actions.h"
+#include "targets/microbit-v2/abi/host-actions/host-action-bindings.h"
 #include "targets/microbit-v2/abi/host-func-id.h"
 #include "targets/microbit-v2/abi/host-functions/host-func-bindings.h"
 #include "targets/microbit-v2/abi/microbit-field.h"
@@ -12,6 +16,8 @@
 
 #include <cstdint>
 #include <iterator>
+#include <limits>
+#include <vector>
 
 using wendoo::CONTEXT_MICROBIT_FIELD_ID;
 using wendoo::kContextFieldCount;
@@ -85,7 +91,9 @@ TEST_CASE("MicroBitV2HostFuncId values are wire-stable") {
   CHECK(static_cast<uint32_t>(MicroBitV2HostFuncId::SensorLightLevel) == 1078);
   CHECK(static_cast<uint32_t>(MicroBitV2HostFuncId::ThermometerGetTemperature) == 1079);
   CHECK(static_cast<uint32_t>(MicroBitV2HostFuncId::SensorTemperature) == 1080);
-  CHECK(kMicroBitV2HostFuncIdCount == 57);
+  CHECK(static_cast<uint32_t>(MicroBitV2HostFuncId::ActuatorPlayTone) == 1081);
+  CHECK(static_cast<uint32_t>(MicroBitV2HostFuncId::AudioPlayTone) == 1082);
+  CHECK(kMicroBitV2HostFuncIdCount == 59);
   CHECK(static_cast<uint32_t>(MicroBitV2HostFuncId::DisplaySetPixelValue) == TARGET_FUNC_ID_BASE);
 }
 
@@ -96,7 +104,7 @@ TEST_CASE("the host-function binding table binds every declared device-API host 
   wendoo::DevicePorts ports{};
   const auto bindings = wendoo::makeMicroBitV2HostFuncBindings(ports);
   CHECK(bindings.size() == wendoo::kMicroBitV2HostFuncBindingCount);
-  CHECK(wendoo::kMicroBitV2HostFuncBindingCount == 35);
+  CHECK(wendoo::kMicroBitV2HostFuncBindingCount == 36);
   const wendoo::TargetHostFuncBinding* clearBinding = nullptr;
   for (const auto& binding : bindings) {
     if (binding.funcId == static_cast<uint32_t>(MicroBitV2HostFuncId::DisplayClear)) {
@@ -126,7 +134,8 @@ TEST_CASE("MicroBitV2TypeAtomId values are wire-stable") {
   CHECK(static_cast<uint32_t>(MicroBitV2TypeAtomId::PlaySoundOptions) == 1038);
   CHECK(static_cast<uint32_t>(MicroBitV2TypeAtomId::DrawImageOptions) == 1039);
   CHECK(static_cast<uint32_t>(MicroBitV2TypeAtomId::ScrollTextOptions) == 1040);
-  CHECK(kMicroBitV2TypeAtomIdCount == 17);
+  CHECK(static_cast<uint32_t>(MicroBitV2TypeAtomId::PlayToneOptions) == 1041);
+  CHECK(kMicroBitV2TypeAtomIdCount == 18);
   CHECK(static_cast<uint32_t>(MicroBitV2TypeAtomId::MicroBitDisplay) == TARGET_TYPE_ATOM_BASE);
 }
 
@@ -194,8 +203,12 @@ TEST_CASE("microbit-v2 host-action ids are wire-stable") {
   CHECK(MicroBitV2HostActions::Temperature.fnId ==
         static_cast<uint32_t>(MicroBitV2HostFuncId::SensorTemperature));
   CHECK(MicroBitV2HostActions::Temperature.fnId == 1080);
+  CHECK(MicroBitV2HostActions::PlayTone.actionId == 1041);
+  CHECK(MicroBitV2HostActions::PlayTone.fnId ==
+        static_cast<uint32_t>(MicroBitV2HostFuncId::ActuatorPlayTone));
+  CHECK(MicroBitV2HostActions::PlayTone.fnId == 1081);
 
-  REQUIRE(std::size(kMicroBitV2HostActions) == 17);
+  REQUIRE(std::size(kMicroBitV2HostActions) == 18);
   for (uint32_t i = 0; i < std::size(kMicroBitV2HostActions); i++) {
     CHECK(kMicroBitV2HostActions[i].actionId == TARGET_ACTION_ID_BASE + i);
   }
@@ -219,4 +232,435 @@ TEST_CASE("MicroBitField values are wire-stable") {
 TEST_CASE("the Context.microbit extension id sits just above the core Context fields") {
   CHECK(CONTEXT_MICROBIT_FIELD_ID == 6);
   CHECK(CONTEXT_MICROBIT_FIELD_ID == kContextFieldCount);
+}
+
+namespace {
+
+using wendoo::AsyncHandle;
+using wendoo::HandleState;
+using wendoo::HandleTable;
+using wendoo::ManagedHeap;
+using wendoo::mc_number_t;
+using wendoo::RegionArena;
+using wendoo::SpeakerToneCommand;
+using wendoo::SpeakerToneWaveform;
+using wendoo::Value;
+
+/** GC roots for the tone dispatch fixture: nothing is rooted. */
+struct NoRoots : wendoo::GcRoots {
+  void enumerateRoots(wendoo::GcMarker&) override {}
+};
+
+/**
+ * Host stub speaker under the speaker lease: an accepted tone is recorded and
+ * holds the lease until {@link advance} settles it at its end time. A tone
+ * dispatched while the lease is held, and one with a negative duration, is
+ * dropped -- nothing is recorded and its handle settles at once.
+ */
+struct LeasingSpeaker : wendoo::SpeakerPort {
+  std::vector<SpeakerToneCommand> tones;
+  int preempts = 0;
+  bool busy = false;
+  mc_number_t completionTime = 0;
+  AsyncHandle active{};
+
+  void playSoundEmoji(const uint8_t*, uint32_t, mc_number_t, AsyncHandle handle) override {
+    handle.resolve(wendoo::kVoidValue);
+  }
+
+  void playTone(const SpeakerToneCommand& tone, mc_number_t requestTimeMs,
+                AsyncHandle handle) override {
+    if (busy || tone.durationMs < 0) {
+      handle.resolve(wendoo::kVoidValue);
+      return;
+    }
+    tones.push_back(tone);
+    busy = true;
+    completionTime = requestTimeMs + static_cast<mc_number_t>(tone.durationMs);
+    active = handle;
+  }
+
+  void preempt() override {
+    preempts++;
+    if (!busy) {
+      return;
+    }
+    const AsyncHandle held = active;
+    busy = false;
+    held.resolve(wendoo::kVoidValue);
+  }
+
+  /** Settles the held tone once its duration has elapsed by `now`. */
+  void advance(mc_number_t now) {
+    if (!busy || now < completionTime) {
+      return;
+    }
+    busy = false;
+    active.resolve(wendoo::kVoidValue);
+  }
+};
+
+/** Arg-slot count of the beep tile action, one nil per unfilled slot. */
+constexpr size_t kPlayToneArgCount = 9;
+
+/** Arg-slot count of the `MicroBitAudio.playTone` host function. */
+constexpr size_t kAudioPlayToneArgCount = 3;
+
+/**
+ * Dispatches the play-tone bodies against a leasing speaker, over the heap and
+ * handle table they settle through.
+ */
+struct ToneDispatch {
+  std::vector<uint8_t> storage = std::vector<uint8_t>(64 * 1024);
+  RegionArena arena{wendoo::Span<uint8_t>(storage.data(), storage.size())};
+  ManagedHeap heap{arena};
+  HandleTable handles{arena, 32};
+  NoRoots roots;
+  LeasingSpeaker speaker;
+  wendoo::DevicePorts ports{};
+  wendoo::ExecutionContext ctx;
+
+  ToneDispatch() { ports.speaker = &speaker; }
+
+  /** The tone command the last accepted dispatch handed the speaker port. */
+  const SpeakerToneCommand& lastTone() {
+    REQUIRE(!speaker.tones.empty());
+    return speaker.tones.back();
+  }
+
+  /** The state the handle bound to a dispatch settled to. */
+  HandleState stateOf(uint32_t handleId) {
+    const wendoo::Handle* handle = handles.get(handleId);
+    REQUIRE(handle != nullptr);
+    return handle->state;
+  }
+
+  /** Dispatches the beep tile action with `args`, returning its bound handle id. */
+  uint32_t dispatchTile(const std::vector<Value>& args) {
+    auto bindings = wendoo::makeMicroBitV2HostActionBindings(ports);
+    const wendoo::HostActionBinding* binding = wendoo::findHostActionById(
+        {bindings.data(), bindings.size()}, MicroBitV2HostActions::PlayTone.actionId);
+    REQUIRE(binding != nullptr);
+    REQUIRE(binding->execAsync != nullptr);
+    const uint32_t handleId = handles.createPending();
+    REQUIRE(binding
+                ->execAsync(binding->hostData, ctx, {args.data(), args.size()},
+                            AsyncHandle{&handles, handleId})
+                .isOk());
+    return handleId;
+  }
+
+  /** Dispatches `MicroBitAudio.playTone` with `args`, returning its bound handle id. */
+  uint32_t dispatchHostFn(const std::vector<Value>& args) {
+    wendoo::MicroBitV2PlayToneEnv env{&speaker, &heap};
+    auto bindings = wendoo::makeMicroBitV2HostFuncBindings(
+        ports, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &env);
+    const wendoo::TargetHostFuncBinding* binding =
+        wendoo::findTargetHostFuncById({bindings.data(), bindings.size()},
+                                       static_cast<uint32_t>(MicroBitV2HostFuncId::AudioPlayTone));
+    REQUIRE(binding != nullptr);
+    REQUIRE(binding->execAsync != nullptr);
+    const uint32_t handleId = handles.createPending();
+    REQUIRE(binding
+                ->execAsync(binding->hostData, ctx, {args.data(), args.size()},
+                            AsyncHandle{&handles, handleId})
+                .isOk());
+    return handleId;
+  }
+
+  /** A `PlayToneOptions` struct value with every field nil. */
+  Value options() {
+    Value value;
+    REQUIRE(heap.newStruct(static_cast<uint32_t>(MicroBitV2TypeAtomId::PlayToneOptions), 5, &roots,
+                           value));
+    return value;
+  }
+
+  /** Sets one field of the `PlayToneOptions` struct `options`. */
+  void setOption(const Value& options, uint32_t fieldId, const Value& field) {
+    heap.structSet(heap.structOf(options), fieldId, field);
+  }
+
+  /** A managed string value holding `text`. */
+  Value string(const char* text) {
+    Value value;
+    uint32_t length = 0;
+    while (text[length] != '\0') {
+      length++;
+    }
+    REQUIRE(heap.newString(text, length, &roots, value));
+    return value;
+  }
+};
+
+/** The beep tile arg buffer with every slot nil. */
+std::vector<Value> toneArgs() { return std::vector<Value>(kPlayToneArgCount, wendoo::kNilValue); }
+
+/** The playTone host-function arg buffer: the audio receiver, then nil slots. */
+std::vector<Value> audioArgs() {
+  std::vector<Value> args(kAudioPlayToneArgCount, wendoo::kNilValue);
+  args[0] = Value::structValue(static_cast<uint32_t>(MicroBitV2TypeAtomId::MicroBitAudio), 0);
+  return args;
+}
+
+/** A present plain modifier, as the compiler fills a modifier slot. */
+const Value kModifierPresent = Value::boolean(true);
+
+} // namespace
+
+TEST_CASE("a bare beep sounds the default triangle tone for half a second") {
+  ToneDispatch dispatch;
+  const uint32_t handleId = dispatch.dispatchTile(toneArgs());
+  REQUIRE(dispatch.speaker.tones.size() == 1);
+  CHECK(dispatch.lastTone().waveform == SpeakerToneWaveform::Triangle);
+  CHECK(dispatch.lastTone().frequencyHz == 880.0f);
+  CHECK(dispatch.lastTone().durationMs == 500);
+  CHECK(dispatch.lastTone().volume == 1.0f);
+  // The tone holds the lease, so the issuing rule parks until it ends.
+  CHECK(dispatch.stateOf(handleId) == HandleState::Pending);
+  dispatch.speaker.advance(500);
+  CHECK(dispatch.stateOf(handleId) == HandleState::Resolved);
+}
+
+TEST_CASE("each beep argument sets its field of the port command") {
+  ToneDispatch dispatch;
+  std::vector<Value> args = toneArgs();
+  args[wendoo::kPlayToneFrequencyArgSlot] = Value::number(440.0f);
+  args[wendoo::kPlayToneDurationArgSlot] = Value::number(0.2f);
+  args[wendoo::kPlayToneVolumeArgSlot] = Value::number(0.25f);
+  dispatch.dispatchTile(args);
+  CHECK(dispatch.lastTone().frequencyHz == 440.0f);
+  CHECK(dispatch.lastTone().durationMs == 200);
+  CHECK(dispatch.lastTone().volume == 0.25f);
+}
+
+TEST_CASE("each wave-shape modifier selects its shape at the port") {
+  const struct {
+    uint32_t slot;
+    SpeakerToneWaveform waveform;
+  } shapes[] = {
+      {wendoo::kPlayToneSquareArgSlot, SpeakerToneWaveform::Square},
+      {wendoo::kPlayToneSawtoothArgSlot, SpeakerToneWaveform::Sawtooth},
+      {wendoo::kPlayToneSineArgSlot, SpeakerToneWaveform::Sine},
+      {wendoo::kPlayToneTriangleArgSlot, SpeakerToneWaveform::Triangle},
+  };
+  for (const auto& shape : shapes) {
+    ToneDispatch dispatch;
+    std::vector<Value> args = toneArgs();
+    args[shape.slot] = kModifierPresent;
+    dispatch.dispatchTile(args);
+    CHECK(dispatch.lastTone().waveform == shape.waveform);
+  }
+}
+
+TEST_CASE("a beep clamps its pitch and volume at the port") {
+  ToneDispatch high;
+  std::vector<Value> loud = toneArgs();
+  loud[wendoo::kPlayToneFrequencyArgSlot] = Value::number(20000.0f);
+  loud[wendoo::kPlayToneVolumeArgSlot] = Value::number(2.0f);
+  high.dispatchTile(loud);
+  CHECK(high.lastTone().frequencyHz == 9999.0f);
+  CHECK(high.lastTone().volume == 1.0f);
+
+  ToneDispatch quiet;
+  std::vector<Value> soft = toneArgs();
+  soft[wendoo::kPlayToneFrequencyArgSlot] = Value::number(440.0f);
+  soft[wendoo::kPlayToneVolumeArgSlot] = Value::number(-1.0f);
+  quiet.dispatchTile(soft);
+  CHECK(quiet.lastTone().volume == 0.0f);
+}
+
+TEST_CASE("a 0 Hz beep crosses the port as a silent rest and still holds the lease") {
+  ToneDispatch rest;
+  std::vector<Value> args = toneArgs();
+  args[wendoo::kPlayToneFrequencyArgSlot] = Value::number(0.0f);
+  args[wendoo::kPlayToneVolumeArgSlot] = Value::number(0.5f);
+  const uint32_t handleId = rest.dispatchTile(args);
+  CHECK(rest.lastTone().frequencyHz == 0.0f);
+  CHECK(rest.lastTone().volume == 0.0f);
+  CHECK(rest.stateOf(handleId) == HandleState::Pending);
+
+  // A negative pitch clamps onto the same silent rest.
+  ToneDispatch below;
+  std::vector<Value> negative = toneArgs();
+  negative[wendoo::kPlayToneFrequencyArgSlot] = Value::number(-5.0f);
+  below.dispatchTile(negative);
+  CHECK(below.lastTone().frequencyHz == 0.0f);
+  CHECK(below.lastTone().volume == 0.0f);
+}
+
+TEST_CASE("a non-finite beep argument reads as its default") {
+  const float nonFinite[] = {std::numeric_limits<float>::quiet_NaN(),
+                             std::numeric_limits<float>::infinity(),
+                             -std::numeric_limits<float>::infinity()};
+  for (const float value : nonFinite) {
+    for (const uint32_t slot : {wendoo::kPlayToneFrequencyArgSlot, wendoo::kPlayToneDurationArgSlot,
+                                wendoo::kPlayToneVolumeArgSlot}) {
+      ToneDispatch dispatch;
+      std::vector<Value> args = toneArgs();
+      args[slot] = Value::number(value);
+      dispatch.dispatchTile(args);
+      CHECK(dispatch.lastTone().waveform == SpeakerToneWaveform::Triangle);
+      CHECK(dispatch.lastTone().frequencyHz == 880.0f);
+      CHECK(dispatch.lastTone().durationMs == 500);
+      CHECK(dispatch.lastTone().volume == 1.0f);
+    }
+  }
+}
+
+TEST_CASE("a beep with a negative duration sounds nothing and resolves at dispatch") {
+  ToneDispatch dispatch;
+  std::vector<Value> args = toneArgs();
+  args[wendoo::kPlayToneDurationArgSlot] = Value::number(-1.0f);
+  const uint32_t handleId = dispatch.dispatchTile(args);
+  CHECK(dispatch.speaker.tones.empty());
+  CHECK(dispatch.stateOf(handleId) == HandleState::Resolved);
+}
+
+TEST_CASE("a beep with a zero duration crosses the port and resolves on the first lease settle") {
+  ToneDispatch dispatch;
+  std::vector<Value> args = toneArgs();
+  args[wendoo::kPlayToneDurationArgSlot] = Value::number(0.0f);
+  const uint32_t handleId = dispatch.dispatchTile(args);
+  REQUIRE(dispatch.speaker.tones.size() == 1);
+  CHECK(dispatch.lastTone().durationMs == 0);
+  CHECK(dispatch.stateOf(handleId) == HandleState::Pending);
+  dispatch.speaker.advance(0);
+  CHECK(dispatch.stateOf(handleId) == HandleState::Resolved);
+}
+
+TEST_CASE("a beep dispatched while the speaker is busy is silently dropped") {
+  ToneDispatch dispatch;
+  const uint32_t holderId = dispatch.dispatchTile(toneArgs());
+  std::vector<Value> args = toneArgs();
+  args[wendoo::kPlayToneFrequencyArgSlot] = Value::number(440.0f);
+  const uint32_t droppedId = dispatch.dispatchTile(args);
+  // Only the holder's tone crosses the port; the competitor's is dropped and
+  // its rule continues at once.
+  CHECK(dispatch.speaker.tones.size() == 1);
+  CHECK(dispatch.lastTone().frequencyHz == 880.0f);
+  CHECK(dispatch.stateOf(droppedId) == HandleState::Resolved);
+  CHECK(dispatch.stateOf(holderId) == HandleState::Pending);
+}
+
+TEST_CASE("a beep with immediately preempts the holder at dispatch, whose handle resolves") {
+  ToneDispatch dispatch;
+  const uint32_t holderId = dispatch.dispatchTile(toneArgs());
+  std::vector<Value> args = toneArgs();
+  args[wendoo::kPlayToneFrequencyArgSlot] = Value::number(440.0f);
+  args[wendoo::kPlayToneImmediatelyArgSlot] = kModifierPresent;
+  const uint32_t preemptorId = dispatch.dispatchTile(args);
+  CHECK(dispatch.speaker.tones.size() == 2);
+  CHECK(dispatch.lastTone().frequencyHz == 440.0f);
+  CHECK(dispatch.stateOf(holderId) == HandleState::Resolved);
+  CHECK(dispatch.stateOf(preemptorId) == HandleState::Pending);
+}
+
+TEST_CASE("a beep in background keeps its lease while the issuing rule continues") {
+  ToneDispatch dispatch;
+  std::vector<Value> args = toneArgs();
+  args[wendoo::kPlayToneInBackgroundArgSlot] = kModifierPresent;
+  const uint32_t handleId = dispatch.dispatchTile(args);
+  CHECK(dispatch.speaker.tones.size() == 1);
+  CHECK(dispatch.stateOf(handleId) == HandleState::Resolved);
+  // The tone still holds the speaker: a competitor dispatched now is dropped.
+  const uint32_t droppedId = dispatch.dispatchTile(toneArgs());
+  CHECK(dispatch.speaker.tones.size() == 1);
+  CHECK(dispatch.stateOf(droppedId) == HandleState::Resolved);
+}
+
+TEST_CASE("a bare playTone call sounds the same default tone as the bare tile") {
+  ToneDispatch dispatch;
+  const uint32_t handleId = dispatch.dispatchHostFn(audioArgs());
+  REQUIRE(dispatch.speaker.tones.size() == 1);
+  CHECK(dispatch.lastTone().waveform == SpeakerToneWaveform::Triangle);
+  CHECK(dispatch.lastTone().frequencyHz == 880.0f);
+  CHECK(dispatch.lastTone().durationMs == 500);
+  CHECK(dispatch.lastTone().volume == 1.0f);
+  CHECK(dispatch.stateOf(handleId) == HandleState::Pending);
+}
+
+TEST_CASE("each playTone argument and option sets its field of the port command") {
+  ToneDispatch dispatch;
+  std::vector<Value> args = audioArgs();
+  args[wendoo::kAudioPlayToneHostFnFrequencyArgSlot] = Value::number(262.0f);
+  const Value options = dispatch.options();
+  dispatch.setOption(options, wendoo::kPlayToneOptionsDurationField, Value::number(0.3f));
+  dispatch.setOption(options, wendoo::kPlayToneOptionsVolumeField, Value::number(0.5f));
+  dispatch.setOption(options, wendoo::kPlayToneOptionsWaveformField, dispatch.string("square"));
+  args[wendoo::kAudioPlayToneHostFnOptionsArgSlot] = options;
+  dispatch.dispatchHostFn(args);
+  CHECK(dispatch.lastTone().waveform == SpeakerToneWaveform::Square);
+  CHECK(dispatch.lastTone().frequencyHz == 262.0f);
+  CHECK(dispatch.lastTone().durationMs == 300);
+  CHECK(dispatch.lastTone().volume == 0.5f);
+}
+
+TEST_CASE("a playTone naming a waveform outside the sounded set is a silent no-op") {
+  ToneDispatch dispatch;
+  std::vector<Value> args = audioArgs();
+  const Value options = dispatch.options();
+  dispatch.setOption(options, wendoo::kPlayToneOptionsWaveformField, dispatch.string("bogus"));
+  args[wendoo::kAudioPlayToneHostFnOptionsArgSlot] = options;
+  const uint32_t handleId = dispatch.dispatchHostFn(args);
+  CHECK(dispatch.speaker.tones.empty());
+  CHECK(dispatch.stateOf(handleId) == HandleState::Resolved);
+}
+
+TEST_CASE("a playTone with immediately preempts before its waveform is examined") {
+  ToneDispatch dispatch;
+  const uint32_t holderId = dispatch.dispatchTile(toneArgs());
+  std::vector<Value> args = audioArgs();
+  const Value options = dispatch.options();
+  dispatch.setOption(options, wendoo::kPlayToneOptionsWaveformField, dispatch.string("bogus"));
+  dispatch.setOption(options, wendoo::kPlayToneOptionsImmediatelyField, Value::boolean(true));
+  args[wendoo::kAudioPlayToneHostFnOptionsArgSlot] = options;
+  const uint32_t handleId = dispatch.dispatchHostFn(args);
+  // The unknown name sounds nothing, but the holder was preempted first.
+  CHECK(dispatch.speaker.tones.size() == 1);
+  CHECK(dispatch.stateOf(holderId) == HandleState::Resolved);
+  CHECK(dispatch.stateOf(handleId) == HandleState::Resolved);
+}
+
+TEST_CASE("a playTone in background resolves at dispatch while the tone holds the lease") {
+  ToneDispatch dispatch;
+  std::vector<Value> args = audioArgs();
+  const Value options = dispatch.options();
+  dispatch.setOption(options, wendoo::kPlayToneOptionsInBackgroundField, Value::boolean(true));
+  args[wendoo::kAudioPlayToneHostFnOptionsArgSlot] = options;
+  const uint32_t handleId = dispatch.dispatchHostFn(args);
+  CHECK(dispatch.speaker.tones.size() == 1);
+  CHECK(dispatch.stateOf(handleId) == HandleState::Resolved);
+  CHECK(dispatch.speaker.busy);
+}
+
+TEST_CASE("a playTone on an unrecognized receiver sounds nothing and resolves at dispatch") {
+  ToneDispatch dispatch;
+  std::vector<Value> args = audioArgs();
+  args[0] = Value::structValue(static_cast<uint32_t>(MicroBitV2TypeAtomId::MicroBitDisplay), 0);
+  const uint32_t handleId = dispatch.dispatchHostFn(args);
+  CHECK(dispatch.speaker.tones.empty());
+  CHECK(dispatch.stateOf(handleId) == HandleState::Resolved);
+}
+
+TEST_CASE("a nil or non-finite playTone option reads as its default") {
+  const float nonFinite[] = {std::numeric_limits<float>::quiet_NaN(),
+                             std::numeric_limits<float>::infinity(),
+                             -std::numeric_limits<float>::infinity()};
+  for (const float value : nonFinite) {
+    for (const uint32_t field :
+         {wendoo::kPlayToneOptionsDurationField, wendoo::kPlayToneOptionsVolumeField}) {
+      ToneDispatch dispatch;
+      std::vector<Value> args = audioArgs();
+      args[wendoo::kAudioPlayToneHostFnFrequencyArgSlot] = Value::number(value);
+      const Value options = dispatch.options();
+      dispatch.setOption(options, field, Value::number(value));
+      args[wendoo::kAudioPlayToneHostFnOptionsArgSlot] = options;
+      dispatch.dispatchHostFn(args);
+      CHECK(dispatch.lastTone().waveform == SpeakerToneWaveform::Triangle);
+      CHECK(dispatch.lastTone().frequencyHz == 880.0f);
+      CHECK(dispatch.lastTone().durationMs == 500);
+      CHECK(dispatch.lastTone().volume == 1.0f);
+    }
+  }
 }

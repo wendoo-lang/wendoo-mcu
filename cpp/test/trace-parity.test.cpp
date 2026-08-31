@@ -533,9 +533,10 @@ struct HostMicroBit {
   };
 
   // Host stub speaker: the play lease is driven by the pinned nominal-duration
-  // table against logical time. An accepted play emits the port line and holds
-  // the lease to its nominal completion; a play requested while busy, or an
-  // unknown name, is settled at once with no port line. Mirrors pollSpeaker.
+  // table (a tone by its own duration) against logical time. An accepted play
+  // emits the port line and holds the lease to its completion; a play requested
+  // while busy, an unknown name, and a negative-duration tone are settled at
+  // once with no port line. Mirrors pollSpeaker.
   struct TracingSpeaker : wendoo::SpeakerPort {
     ObservableTraceWriter* writer = nullptr;
     bool busy = false;
@@ -558,6 +559,21 @@ struct HostMicroBit {
       }
       busy = true;
       completionTime = requestTimeMs + static_cast<float>(durationMs);
+      active = handle;
+    }
+
+    void playTone(const wendoo::SpeakerToneCommand& tone, float requestTimeMs,
+                  wendoo::AsyncHandle handle) override {
+      if (busy || tone.durationMs < 0) {
+        handle.resolve(wendoo::kVoidValue);
+        return;
+      }
+      if (writer != nullptr) {
+        writer->speakerTone(static_cast<uint32_t>(tone.waveform), tone.frequencyHz,
+                            static_cast<uint32_t>(tone.durationMs), tone.volume);
+      }
+      busy = true;
+      completionTime = requestTimeMs + static_cast<float>(tone.durationMs);
       active = handle;
     }
 
@@ -3852,12 +3868,15 @@ void checkDrawFixture(const std::string& name, int tickCount, float tickMs) {
   CHECK(sink.text() == golden);
 }
 
-// Loads a play-sound fixture `name`, replays it over `tickCount` thinks at
-// `tickMs` each, and byte-compares the rendered trace against the committed
-// golden. The play-sound body reads the SoundEmoji argument's name string
-// through the image-backed heap; the speaker lease settles on the pinned
-// nominal-duration table before each think, as pollSpeaker does on device.
-void checkPlaySoundFixture(const std::string& name, int tickCount, float tickMs) {
+// Loads a speaker fixture `name` whose rules dispatch the async play-sound or
+// play-tone host actions, replays it over `tickCount` thinks at `tickMs` each,
+// and byte-compares the rendered trace against the committed golden. The
+// play-sound body reads the SoundEmoji argument's name string through the
+// image-backed heap; the play-tone body reads the speaker port straight off the
+// device ports. The speaker lease settles before each think, as pollSpeaker does
+// on device: a built-in sound on the pinned nominal-duration table, a tone on
+// its own duration.
+void checkSpeakerActionFixture(const std::string& name, int tickCount, float tickMs) {
   const std::string base = std::string(wendoo::test::kWodalFixturesDir) + "/" + name;
   const std::vector<uint8_t> wire = readBinaryFile(base + ".mcprogram.bin");
   const std::string golden = readTextFile(base + ".ticks.trace");
@@ -3991,17 +4010,15 @@ void checkUserTileDrawFixture(const std::string& name, int tickCount, float tick
   CHECK(sink.text() == golden);
 }
 
-// Loads a user-tile play-sound fixture `name` whose async actuators await the
-// op-41 async ctx.microbit.audio.playSound host function. Wires the
-// native-struct receiver resolution and the host-function table (with the
-// play-sound env) alongside the core host actions (the on-page-entered
-// sensor), runs `tickCount` thinks at `tickMs` each (settling the speaker
-// lease before each think, as the device's pollSpeaker does; the fixtures
-// keep every sound's duration above the tick interval, so no play completes
-// within its own dispatch tick and the before-think poll observes the same
-// settles the wodal runtime's after-think poll does), and byte-compares the
-// rendered trace against the committed golden.
-void checkUserTilePlaySoundFixture(const std::string& name, int tickCount, float tickMs) {
+// Loads a user-tile speaker fixture `name` whose async actuators await the
+// op-41 async ctx.microbit.audio.playSound or ctx.microbit.audio.playTone host
+// function. Wires the native-struct receiver resolution and the host-function
+// table (with the play-sound and play-tone envs) alongside the core host actions
+// (the on-page-entered sensor), runs `tickCount` thinks at `tickMs` each,
+// settling the speaker lease before each think as the device's pollSpeaker does,
+// and byte-compares the rendered trace against the committed golden. Every play
+// the fixture dispatches must last longer than `tickMs`.
+void checkUserTileSpeakerFixture(const std::string& name, int tickCount, float tickMs) {
   const std::string base = std::string(wendoo::test::kWodalFixturesDir) + "/" + name;
   const std::vector<uint8_t> wire = readBinaryFile(base + ".mcprogram.bin");
   const std::string golden = readTextFile(base + ".ticks.trace");
@@ -4026,11 +4043,13 @@ void checkUserTilePlaySoundFixture(const std::string& name, int tickCount, float
   wendoo::ManagedHeap heap(arena, &image);
   writer.setHeap(&heap);
   wendoo::MicroBitV2PlaySoundEnv playSoundEnv{&microbit.speaker, &heap};
+  wendoo::MicroBitV2PlayToneEnv playToneEnv{&microbit.speaker, &heap};
   auto coreBindings = wendoo::makeCoreHostActionBindings(coreEnv);
   auto mbBindings = wendoo::makeMicroBitV2HostActionBindings(microbit.ports);
   auto actions = combineActionTable(coreBindings, mbBindings);
-  auto hostFuncs = wendoo::makeMicroBitV2HostFuncBindings(microbit.ports, nullptr, nullptr, nullptr,
-                                                          nullptr, nullptr, nullptr, &playSoundEnv);
+  auto hostFuncs =
+      wendoo::makeMicroBitV2HostFuncBindings(microbit.ports, nullptr, nullptr, nullptr, nullptr,
+                                             nullptr, nullptr, &playSoundEnv, &playToneEnv);
   wendoo::TypeRegistry types(image);
   auto nativeStructs = wendoo::makeMicroBitV2NativeStructBindings(types);
   types.setNativeStructBindings({nativeStructs.data(), nativeStructs.size()});
@@ -4542,23 +4561,51 @@ TEST_CASE("the draw-image-sequence-compiled fixture byte-matches the golden obse
 }
 
 TEST_CASE("the play-sound-awaited fixture byte-matches the golden observable trace") {
-  checkPlaySoundFixture("play-sound-awaited", 3, 1100.0f);
+  checkSpeakerActionFixture("play-sound-awaited", 3, 1100.0f);
 }
 
 TEST_CASE("the play-sound-dropped fixture byte-matches the golden observable trace") {
-  checkPlaySoundFixture("play-sound-dropped", 4, 1100.0f);
+  checkSpeakerActionFixture("play-sound-dropped", 4, 1100.0f);
 }
 
 TEST_CASE("the play-sound-preempt fixture byte-matches the golden observable trace") {
-  checkPlaySoundFixture("play-sound-preempt", 4, 1100.0f);
+  checkSpeakerActionFixture("play-sound-preempt", 4, 1100.0f);
 }
 
 TEST_CASE("the play-sound-background fixture byte-matches the golden observable trace") {
-  checkPlaySoundFixture("play-sound-background", 8, 1100.0f);
+  checkSpeakerActionFixture("play-sound-background", 8, 1100.0f);
 }
 
 TEST_CASE("the play-sound-dropped-background fixture byte-matches the golden observable trace") {
-  checkPlaySoundFixture("play-sound-dropped-background", 9, 1100.0f);
+  checkSpeakerActionFixture("play-sound-dropped-background", 9, 1100.0f);
+}
+
+TEST_CASE("the play-tone-defaults fixture byte-matches the golden observable trace") {
+  checkSpeakerActionFixture("play-tone-defaults", 7, 100.0f);
+}
+
+TEST_CASE("the play-tone-waveforms fixture byte-matches the golden observable trace") {
+  checkSpeakerActionFixture("play-tone-waveforms", 9, 100.0f);
+}
+
+TEST_CASE("the play-tone-arguments fixture byte-matches the golden observable trace") {
+  checkSpeakerActionFixture("play-tone-arguments", 4, 100.0f);
+}
+
+TEST_CASE("the play-tone-rest-sequence fixture byte-matches the golden observable trace") {
+  checkSpeakerActionFixture("play-tone-rest-sequence", 10, 100.0f);
+}
+
+TEST_CASE("the play-tone-dropped fixture byte-matches the golden observable trace") {
+  checkSpeakerActionFixture("play-tone-dropped", 7, 100.0f);
+}
+
+TEST_CASE("the play-tone-preempt fixture byte-matches the golden observable trace") {
+  checkSpeakerActionFixture("play-tone-preempt", 7, 100.0f);
+}
+
+TEST_CASE("the play-tone-background fixture byte-matches the golden observable trace") {
+  checkSpeakerActionFixture("play-tone-background", 4, 100.0f);
 }
 
 TEST_CASE("the user-tile-draw-timed fixture byte-matches the golden observable trace") {
@@ -4602,23 +4649,27 @@ TEST_CASE(
 }
 
 TEST_CASE("the user-tile-play-sound fixture byte-matches the golden observable trace") {
-  checkUserTilePlaySoundFixture("user-tile-play-sound", 5, 500.0f);
+  checkUserTileSpeakerFixture("user-tile-play-sound", 5, 500.0f);
 }
 
 TEST_CASE("the user-tile-play-sound-unknown fixture byte-matches the golden observable trace") {
-  checkUserTilePlaySoundFixture("user-tile-play-sound-unknown", 2, 500.0f);
+  checkUserTileSpeakerFixture("user-tile-play-sound-unknown", 2, 500.0f);
 }
 
 TEST_CASE("the user-tile-play-sound-all fixture byte-matches the golden observable trace") {
-  checkUserTilePlaySoundFixture("user-tile-play-sound-all", 86, 500.0f);
+  checkUserTileSpeakerFixture("user-tile-play-sound-all", 86, 500.0f);
 }
 
 TEST_CASE("the user-tile-play-sound-preempt fixture byte-matches the golden observable trace") {
-  checkUserTilePlaySoundFixture("user-tile-play-sound-preempt", 5, 500.0f);
+  checkUserTileSpeakerFixture("user-tile-play-sound-preempt", 5, 500.0f);
 }
 
 TEST_CASE("the user-tile-play-sound-background fixture byte-matches the golden observable trace") {
-  checkUserTilePlaySoundFixture("user-tile-play-sound-background", 4, 500.0f);
+  checkUserTileSpeakerFixture("user-tile-play-sound-background", 4, 500.0f);
+}
+
+TEST_CASE("the user-tile-play-tone fixture byte-matches the golden observable trace") {
+  checkUserTileSpeakerFixture("user-tile-play-tone", 12, 100.0f);
 }
 
 TEST_CASE("the display-clear-tile fixture byte-matches the golden observable trace") {

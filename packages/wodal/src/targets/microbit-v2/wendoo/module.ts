@@ -10,6 +10,7 @@ import {
   extractNumberValue,
   extractStringValue,
   isBooleanValue,
+  isNilValue,
   isStructValue,
   List,
   mkCallDef,
@@ -48,7 +49,7 @@ import { TouchButton } from "../../../core/touch-button";
 import { WODAL_SHARED_TYPE_IDS } from "../../../wendoo/shared-type-ids";
 import { MicroBit } from "../microbit";
 import { MicroBitDisplay } from "../microbit-display";
-import { MicroBitSpeaker } from "../microbit-speaker";
+import { findToneWaveform, MicroBitSpeaker, mkSpeakerToneCommand, type SpeakerToneWaveform } from "../microbit-speaker";
 import { buttonABSensor, buttonASensor, buttonBSensor, buttonLogoSensor } from "./actions/button-sensor";
 import displayClearActuator from "./actions/display-clear";
 import displayDrawActuator, { clipImage, DEFAULT_DURATION_MS, DEFAULT_IMAGE } from "./actions/display-draw";
@@ -58,6 +59,12 @@ import displaySetPixelActuator from "./actions/display-set-pixel";
 import { gestureSensor } from "./actions/gesture-sensor";
 import { lightLevelSensor } from "./actions/light-level-sensor";
 import playSoundActuator from "./actions/play-sound";
+import playToneActuator, {
+  DEFAULT_DURATION_SECONDS,
+  DEFAULT_FREQUENCY_HZ,
+  DEFAULT_VOLUME,
+  DEFAULT_WAVEFORM,
+} from "./actions/play-tone";
 import {
   radioReceiveBufferSensor,
   radioReceiveNumberSensor,
@@ -115,6 +122,9 @@ export const WODAL_MICROBIT_V2_TYPE_IDS = {
 
   /** Options struct for `MicroBitAudio.playSound`: the two optional lease flags. */
   PlaySoundOptions: mkTypeId(NativeType.Struct, "PlaySoundOptions"),
+
+  /** Options struct for `MicroBitAudio.playTone`: the optional tone shape and the two lease flags. */
+  PlayToneOptions: mkTypeId(NativeType.Struct, "PlayToneOptions"),
 
   /** Options struct for `MicroBitDisplay.drawImage`: the optional hold duration and two lease flags. */
   DrawImageOptions: mkTypeId(NativeType.Struct, "DrawImageOptions"),
@@ -181,6 +191,18 @@ enum DrawImageOptionsField {
   Duration = 0,
   Immediately = 1,
   InBackground = 2,
+}
+
+/**
+ * Field ids of the `PlayToneOptions` option struct in declaration order: the
+ * three optional tone controls ahead of the two lease flags.
+ */
+enum PlayToneOptionsField {
+  Duration = 0,
+  Volume = 1,
+  Waveform = 2,
+  Immediately = 3,
+  InBackground = 4,
 }
 
 /**
@@ -460,6 +482,27 @@ function registerMicroBitTypes(api: WendooModuleApi): void {
     ]),
   });
 
+  types.addStructType("PlayToneOptions", {
+    atomId: MicroBitV2TypeAtomId.PlayToneOptions,
+    fields: List.from([
+      { name: "duration", typeId: CoreTypeIds.Number, fieldIndex: PlayToneOptionsField.Duration, optional: true },
+      { name: "volume", typeId: CoreTypeIds.Number, fieldIndex: PlayToneOptionsField.Volume, optional: true },
+      { name: "waveform", typeId: CoreTypeIds.String, fieldIndex: PlayToneOptionsField.Waveform, optional: true },
+      {
+        name: "immediately",
+        typeId: CoreTypeIds.Boolean,
+        fieldIndex: PlayToneOptionsField.Immediately,
+        optional: true,
+      },
+      {
+        name: "inBackground",
+        typeId: CoreTypeIds.Boolean,
+        fieldIndex: PlayToneOptionsField.InBackground,
+        optional: true,
+      },
+    ]),
+  });
+
   types.addStructType("DrawImageOptions", {
     atomId: MicroBitV2TypeAtomId.DrawImageOptions,
     fields: List.from([
@@ -558,6 +601,15 @@ function registerMicroBitTypes(api: WendooModuleApi): void {
         params: List.from([
           { name: "sound", typeId: CoreTypeIds.String },
           { name: "options", typeId: WODAL_MICROBIT_V2_TYPE_IDS.PlaySoundOptions, optional: true },
+        ]),
+        returnTypeId: CoreTypeIds.Void,
+        isAsync: true,
+      },
+      {
+        name: "playTone",
+        params: List.from([
+          { name: "frequency", typeId: CoreTypeIds.Number, optional: true },
+          { name: "options", typeId: WODAL_MICROBIT_V2_TYPE_IDS.PlayToneOptions, optional: true },
         ]),
         returnTypeId: CoreTypeIds.Void,
         isAsync: true,
@@ -1225,6 +1277,64 @@ function registerAudioFunctions(api: WendooModuleApi): void {
     },
     callDef: emptyCallDef,
   });
+
+  api.registerFunction({
+    id: MicroBitV2HostFuncId.AudioPlayTone,
+    name: "MicroBitAudio.playTone",
+    isAsync: true,
+    fn: {
+      exec: (ctx: ExecutionContext, args: ReadonlyList<Value>, handle: AsyncHandle) => {
+        const speaker = getAudioReceiver(args);
+        if (!speaker) {
+          handle.resolve(VOID_VALUE);
+          return;
+        }
+        const options = args.at(2);
+        // The `immediately` flag preempts the current speaker lease at dispatch,
+        // before the new tone is examined, so an unknown waveform still preempts.
+        if (optionFlag(options, PlayToneOptionsField.Immediately)) {
+          speaker.preempt();
+        }
+        const waveform = requestedWaveform(optionField(options, PlayToneOptionsField.Waveform));
+        if (waveform === undefined) {
+          handle.resolve(VOID_VALUE);
+          return;
+        }
+        const durationSeconds = finiteNumber(
+          optionField(options, PlayToneOptionsField.Duration),
+          DEFAULT_DURATION_SECONDS
+        );
+        // Convert the seconds argument to whole ms at f32 precision, matching the device.
+        const command = mkSpeakerToneCommand(
+          waveform,
+          finiteNumber(args.at(1), DEFAULT_FREQUENCY_HZ),
+          Math.round(Math.fround(durationSeconds * 1000)),
+          finiteNumber(optionField(options, PlayToneOptionsField.Volume), DEFAULT_VOLUME)
+        );
+        speaker.playTone(command, ctx.time, () => handle.resolve(VOID_VALUE));
+        // The `inBackground` flag keeps the tone's tick-time lease but resolves
+        // the handle now, releasing the caller so it does not park on the tone.
+        if (optionFlag(options, PlayToneOptionsField.InBackground)) {
+          handle.resolve(VOID_VALUE);
+        }
+      },
+    },
+    callDef: emptyCallDef,
+  });
+}
+
+/**
+ * The wave shape the `waveform` option field names: the default when the field
+ * is absent, and undefined when it names a shape the port does not sound.
+ */
+function requestedWaveform(field: Value): SpeakerToneWaveform | undefined {
+  return isNilValue(field) ? DEFAULT_WAVEFORM : findToneWaveform(extractStringValue(field) ?? "");
+}
+
+/** The number `value` holds, or `fallback` when it is absent, nil, or non-finite. */
+function finiteNumber(value: Value | undefined, fallback: number): number {
+  const number = extractNumberValue(value);
+  return number === undefined || !Number.isFinite(number) ? fallback : number;
 }
 
 /** Builds a `RadioPacket` value struct from a received packet, in field-index order. */
@@ -1266,6 +1376,7 @@ function registerBrainTiles(api: WendooModuleApi): void {
   api.registerHostActuator(createHostActuator(displayDrawActuator));
   api.registerHostActuator(createHostActuator(displayClearActuator));
   api.registerHostActuator(createHostActuator(playSoundActuator));
+  api.registerHostActuator(createHostActuator(playToneActuator));
   api.registerModifiers(MICROBIT_V2_MODIFIERS);
   api.registerParameters(MICROBIT_V2_PARAMETERS);
   registerBuiltInImageTiles(api);

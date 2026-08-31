@@ -63,6 +63,7 @@
  * port gpio analog-read <pin> <value>
  * port sonar distance <trig> <echo> <cm>
  * port speaker play "<name>"
+ * port speaker tone <waveform> <frequencyBits> <durationMs> <volumeBits>
  * port radio send group <g> number <bits>
  * port radio send group <g> double <bits>
  * port radio send group <g> string "<bytes>"
@@ -145,6 +146,13 @@
  *   port, with the sound's name as the quoted byte sequence passed to the
  *   port. A play the busy speaker drops, or a name outside the built-in set (a
  *   no-op), crosses no port and emits no such line.
+ * - `port speaker tone`: one constant-pitch tone play accepted by the speaker
+ *   device port. `<waveform>` is the wave-shape word (`square`, `sawtooth`,
+ *   `sine`, or `triangle`), `<frequencyBits>` the clamped pitch in Hz and
+ *   `<volumeBits>` the clamped 0-1 volume fraction as they crossed the port
+ *   (a 0 Hz rest carries volume 0), and `<durationMs>` the whole-millisecond
+ *   play length in hex. A tone the busy speaker drops, or one with a negative
+ *   duration (a dropped segment), crosses no port and emits no such line.
  * - `port radio send`: one packet transmitted across the radio device port.
  *   `<g>` is the group in hex. The trailing tokens render the typed payload:
  *   `number <bits>` (NUMBER, an integer), `double <bits>` (DOUBLE, a
@@ -161,6 +169,7 @@
 import { NativeType, type ReadonlyList, type Value } from "@wendoo/core/app";
 import { bufferToHex, type NumberPrecision, type VmEvents } from "@wendoo/core/runtime";
 import { RADIO_RAW_PACKET_TYPE, RadioPacketType, type RadioSendRecord } from "../../../core/radio";
+import type { SpeakerToneCommand } from "../microbit-speaker";
 
 /** Current observable trace format version. */
 export const OBSERVABLE_TRACE_FORMAT_VERSION = 1;
@@ -471,6 +480,19 @@ export class ObservableTraceWriter {
    */
   speakerPlay(name: string): void {
     this.line(`port speaker play ${quoted(name)}`);
+  }
+
+  /**
+   * Records one constant-pitch tone play accepted by the speaker device port,
+   * with the frequency, duration, and volume as they crossed the port (after
+   * the port's clamps and the 0 Hz silent-rest encoding).
+   *
+   * @param command - The accepted tone.
+   */
+  speakerTone(command: SpeakerToneCommand): void {
+    this.line(
+      `port speaker tone ${command.waveform} ${numberBits(command.frequencyHz, this.precision)} ${hexU32(command.durationMs)} ${numberBits(command.volume, this.precision)}`
+    );
   }
 
   /**

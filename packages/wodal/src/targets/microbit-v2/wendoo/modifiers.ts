@@ -28,6 +28,10 @@ export const Modifier = {
   freefall: mod(WodalMicroBitV2ModifierId.Freefall),
   immediately: mod(WodalMicroBitV2ModifierId.Immediately),
   inBackground: mod(WodalMicroBitV2ModifierId.InBackground),
+  square: mod(WodalMicroBitV2ModifierId.Square),
+  sawtooth: mod(WodalMicroBitV2ModifierId.Sawtooth),
+  sine: mod(WodalMicroBitV2ModifierId.Sine),
+  triangle: mod(WodalMicroBitV2ModifierId.Triangle),
 };
 
 /** Modifier tiles registered once with the module. */
@@ -48,4 +52,8 @@ export const MICROBIT_V2_MODIFIERS: readonly ModifierTileInput[] = [
   { id: WodalMicroBitV2ModifierId.Freefall, label: "freefall" },
   { id: WodalMicroBitV2ModifierId.Immediately, label: "immediately" },
   { id: WodalMicroBitV2ModifierId.InBackground, label: "in background" },
+  { id: WodalMicroBitV2ModifierId.Square, label: "square" },
+  { id: WodalMicroBitV2ModifierId.Sawtooth, label: "sawtooth" },
+  { id: WodalMicroBitV2ModifierId.Sine, label: "sine" },
+  { id: WodalMicroBitV2ModifierId.Triangle, label: "triangle" },
 ];

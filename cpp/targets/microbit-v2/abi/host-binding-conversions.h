@@ -28,6 +28,27 @@ inline mc_number_t numberArgOr(Span<const Value> args, uint32_t slotId, mc_numbe
     return fallback;
 }
 
+/** The number `value` holds, or `fallback` when it is not a number or is non-finite. */
+inline mc_number_t finiteNumberOr(const Value &value, mc_number_t fallback)
+{
+    if (!value.isNumber())
+    {
+        return fallback;
+    }
+    const mc_number_t number = value.asNumber();
+    if (number != number || number - number != 0.0f) // NaN or infinity
+    {
+        return fallback;
+    }
+    return number;
+}
+
+/** The slot's numeric payload, or `fallback` when absent, non-numeric, or non-finite. */
+inline mc_number_t finiteNumberArgOr(Span<const Value> args, uint32_t slotId, mc_number_t fallback)
+{
+    return finiteNumberOr(slotId < args.size() ? args[slotId] : kNilValue, fallback);
+}
+
 /**
  * Converts a pixel coordinate to the display port's int16 parameter: non-finite
  * values become 0; finite values truncate toward zero and narrow to int16. The

@@ -1,12 +1,14 @@
 #pragma once
 
 #include "MicroBit.h"
+#include "Synthesizer.h"
 
 #include "codal/device-port.h"
 #include "codal/radio-wire.h"
 #include "targets/microbit-v2/abi/button-index.h"
 #include "targets/microbit-v2/abi/display-scroll.h"
 #include "targets/microbit-v2/abi/sound-emoji.h"
+#include "targets/microbit-v2/abi/speaker-tone.h"
 
 namespace wendoo
 {
@@ -224,14 +226,17 @@ private:
  * Drives the on-board speaker through CODAL's `SoundExpressions`. An accepted
  * built-in play stops any still-sounding expression and starts the named one
  * asynchronously; CODAL resolves the name to its encoded data itself and audio
- * activation is automatic. The speaker lease is settled against the pinned
- * nominal-duration table (never CODAL's completion events), polled each
- * host-loop tick by {@link pollSpeaker} against `system_timer_current_time()`;
- * a device synth may randomize the actual playback length around the nominal,
- * and the stop-before-play keeps a still-ringing tail from blocking the next
- * sound. A play requested while the lease is held is silently dropped (its
- * handle settles at once); a name outside the built-in set never reaches CODAL
- * (settled at once, no lease).
+ * activation is automatic. An accepted tone is encoded as a single
+ * `SoundEffect` -- the wave shape's tone function at a constant frequency and a
+ * flat volume -- and handed to the same synthesizer. Built-in plays and tones
+ * share one lease, settled against their pinned duration (never CODAL's
+ * completion events), polled each host-loop tick by {@link pollSpeaker} against
+ * `system_timer_current_time()`; a device synth may randomize the actual
+ * playback length around a built-in's nominal, and the stop-before-play keeps a
+ * still-ringing tail from blocking the next sound. A play or tone requested
+ * while the lease is held is silently dropped (its handle settles at once); a
+ * name outside the built-in set, and a tone with a negative duration, never
+ * reach CODAL (settled at once, no lease).
  */
 class MicroBitSpeakerPort : public SpeakerPort
 {
@@ -259,6 +264,31 @@ public:
         // nominal lease) before starting the new one.
         uBit_.audio.soundExpressions.stop();
         ManagedString sound(reinterpret_cast<const char *>(name), static_cast<int16_t>(length));
+        uBit_.audio.soundExpressions.playAsync(sound);
+    }
+
+    void playTone(const SpeakerToneCommand &tone, mc_number_t, AsyncHandle handle) override
+    {
+        if (busy_ || tone.durationMs < 0)
+        {
+            handle.resolve(kVoidValue);
+            return;
+        }
+        active_ = handle;
+        busy_ = true;
+        completionTime_ = static_cast<uint32_t>(system_timer_current_time()) +
+                          static_cast<uint32_t>(tone.durationMs);
+        uBit_.audio.soundExpressions.stop();
+        ManagedBuffer sound(sizeof(SoundEffect));
+        SoundEffect *fx = reinterpret_cast<SoundEffect *>(&sound[0]);
+        fx->frequency = tone.frequencyHz;
+        // SoundEffect volume is a 0-1 fraction, scaled by the synthesizer across
+        // its own 0-1023 sample range.
+        fx->volume = tone.volume;
+        fx->duration = static_cast<float>(tone.durationMs);
+        fx->tone.tonePrint = tonePrintFor(tone.waveform);
+        // The zeroed effect slots leave the tone at a constant pitch and a flat
+        // volume: a null effect function is skipped by the synthesizer.
         uBit_.audio.soundExpressions.playAsync(sound);
     }
 
@@ -300,6 +330,22 @@ private:
     bool busy_ = false;
     uint32_t completionTime_ = 0;
     AsyncHandle active_{};
+
+    /** The synthesizer tone function generating `waveform`. */
+    static TonePrintFunction tonePrintFor(SpeakerToneWaveform waveform)
+    {
+        switch (waveform)
+        {
+        case SpeakerToneWaveform::Square:
+            return Synthesizer::SquareWaveTone;
+        case SpeakerToneWaveform::Sawtooth:
+            return Synthesizer::SawtoothTone;
+        case SpeakerToneWaveform::Sine:
+            return Synthesizer::SineTone;
+        default:
+            return Synthesizer::TriangleTone;
+        }
+    }
 };
 
 /** Reads button levels: index 0 is button A, 1 is button B, 2 is the touch logo. */

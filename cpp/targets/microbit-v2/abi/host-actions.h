@@ -88,6 +88,10 @@ inline constexpr HostActionIds LightLevel{
 /** Sensor: the die temperature in whole degrees Celsius; signed. */
 inline constexpr HostActionIds Temperature{
     1040, static_cast<uint32_t>(MicroBitV2HostFuncId::SensorTemperature)};
+
+/** Actuator: sound a plain constant-pitch tone on the speaker, awaiting its duration. */
+inline constexpr HostActionIds PlayTone{
+    1041, static_cast<uint32_t>(MicroBitV2HostFuncId::ActuatorPlayTone)};
 } // namespace MicroBitV2HostActions
 
 /**
@@ -112,6 +116,7 @@ inline constexpr HostActionIds kMicroBitV2HostActions[] = {
     MicroBitV2HostActions::DisplayClear,
     MicroBitV2HostActions::LightLevel,
     MicroBitV2HostActions::Temperature,
+    MicroBitV2HostActions::PlayTone,
 };
 
 } // namespace wendoo

@@ -116,6 +116,7 @@ export const tileVisuals = new Map<string, Partial<TileVisual>>([
   [mkActuatorTileId(MicroBitV2HostActions.DisplayClear.key), { iconUrl: icon("actuator-display-clear") }],
   [mkActuatorTileId(MicroBitV2HostActions.DrawImage.key), { iconUrl: icon("actuator-draw-image") }],
   [mkActuatorTileId(MicroBitV2HostActions.PlaySound.key), { iconUrl: icon("actuator-play-sound") }],
+  [mkActuatorTileId(MicroBitV2HostActions.PlayTone.key), { iconUrl: icon("actuator-play-tone") }],
   // Sensor outputs
   [mkOutputTileId(CoreTypeIds.Number, "value"), { iconUrl: icon("output-number-value") }],
   [mkOutputTileId(CoreTypeIds.Number, "rssi"), { iconUrl: icon("output-number-rssi") }],
@@ -138,6 +139,10 @@ export const tileVisuals = new Map<string, Partial<TileVisual>>([
   [mkModifierTileId(WodalMicroBitV2ModifierId.Freefall), { iconUrl: icon("modifier-freefall") }],
   [mkModifierTileId(WodalMicroBitV2ModifierId.Immediately), { iconUrl: icon("modifier-immediately") }],
   [mkModifierTileId(WodalMicroBitV2ModifierId.InBackground), { iconUrl: icon("modifier-in-background") }],
+  [mkModifierTileId(WodalMicroBitV2ModifierId.Square), { iconUrl: icon("modifier-square") }],
+  [mkModifierTileId(WodalMicroBitV2ModifierId.Sawtooth), { iconUrl: icon("modifier-sawtooth") }],
+  [mkModifierTileId(WodalMicroBitV2ModifierId.Sine), { iconUrl: icon("modifier-sine") }],
+  [mkModifierTileId(WodalMicroBitV2ModifierId.Triangle), { iconUrl: icon("modifier-triangle") }],
   // Parameters
   [mkParameterTileId(WodalMicroBitV2ParameterId.X), { iconUrl: icon("parameter-x") }],
   [mkParameterTileId(WodalMicroBitV2ParameterId.Y), { iconUrl: icon("parameter-y") }],
@@ -146,4 +151,5 @@ export const tileVisuals = new Map<string, Partial<TileVisual>>([
   [mkParameterTileId(WodalMicroBitV2ParameterId.Image), { iconUrl: icon("parameter-image") }],
   [mkParameterTileId(WodalMicroBitV2ParameterId.Duration), { iconUrl: icon("parameter-duration") }],
   [mkParameterTileId(WodalMicroBitV2ParameterId.SoundEmoji), { iconUrl: icon("parameter-sound") }],
+  [mkParameterTileId(WodalMicroBitV2ParameterId.Volume), { iconUrl: icon("parameter-volume") }],
 ]);

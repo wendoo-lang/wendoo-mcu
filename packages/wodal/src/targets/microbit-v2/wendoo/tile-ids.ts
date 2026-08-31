@@ -76,6 +76,8 @@ export enum MicroBitV2HostFuncId {
   SensorLightLevel = 1078,
   ThermometerGetTemperature = 1079,
   SensorTemperature = 1080,
+  ActuatorPlayTone = 1081,
+  AudioPlayTone = 1082,
 }
 
 /**
@@ -102,6 +104,7 @@ export enum MicroBitV2TypeAtomId {
   PlaySoundOptions = 1038,
   DrawImageOptions = 1039,
   ScrollTextOptions = 1040,
+  PlayToneOptions = 1041,
 }
 
 /**
@@ -215,6 +218,13 @@ export const MicroBitV2HostActions = {
     actionId: 1040,
     fnId: MicroBitV2HostFuncId.SensorTemperature,
   },
+
+  /** Actuator: play a plain constant-pitch tone on the speaker, awaiting its duration. */
+  PlayTone: {
+    key: "microbit-v2.play-tone",
+    actionId: 1041,
+    fnId: MicroBitV2HostFuncId.ActuatorPlayTone,
+  },
 } as const satisfies Record<string, HostActionIds>;
 
 /**
@@ -272,6 +282,18 @@ export const WodalMicroBitV2ModifierId = {
 
   /** Run the operation under its display or speaker lease without the issuing rule awaiting it. */
   InBackground: "microbit-v2.in-background",
+
+  /** Sound a tone as a square wave. */
+  Square: "microbit-v2.square",
+
+  /** Sound a tone as a sawtooth wave. */
+  Sawtooth: "microbit-v2.sawtooth",
+
+  /** Sound a tone as a sine wave. */
+  Sine: "microbit-v2.sine",
+
+  /** Sound a tone as a triangle wave. */
+  Triangle: "microbit-v2.triangle",
 } as const;
 
 /** Parameter tile ids consumed by the actuators. */
@@ -299,4 +321,7 @@ export const WodalMicroBitV2ParameterId = {
 
   /** Built-in sound to play on the speaker. */
   SoundEmoji: "microbit-v2.sound-emoji",
+
+  /** Tone volume as a fraction of full, 0 to 1. */
+  Volume: "microbit-v2.volume",
 } as const;

@@ -32,12 +32,13 @@ enum class MicroBitV2TypeAtomId : uint32_t
     PlaySoundOptions = 1038,
     DrawImageOptions = 1039,
     ScrollTextOptions = 1040,
+    PlayToneOptions = 1041,
 };
 
 /**
  * Number of declared {@link MicroBitV2TypeAtomId} members; ids are dense
  * from 1024.
  */
-inline constexpr uint32_t kMicroBitV2TypeAtomIdCount = 17;
+inline constexpr uint32_t kMicroBitV2TypeAtomIdCount = 18;
 
 } // namespace wendoo

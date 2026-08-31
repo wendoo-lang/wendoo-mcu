@@ -74,12 +74,14 @@ enum class MicroBitV2HostFuncId : uint32_t
     SensorLightLevel = 1078,
     ThermometerGetTemperature = 1079,
     SensorTemperature = 1080,
+    ActuatorPlayTone = 1081,
+    AudioPlayTone = 1082,
 };
 
 /**
  * Number of declared {@link MicroBitV2HostFuncId} members; ids are dense
  * from 1024.
  */
-inline constexpr uint32_t kMicroBitV2HostFuncIdCount = 57;
+inline constexpr uint32_t kMicroBitV2HostFuncIdCount = 59;
 
 } // namespace wendoo

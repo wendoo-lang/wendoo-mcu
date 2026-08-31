@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { mkSpeakerToneCommand } from "./microbit-speaker";
 import { decodeBuiltInSoundRaw, decodeSoundExpressionRaw, type RawToneEffect } from "./sound-expression";
 import {
   applyEffect,
   renderBuiltInSoundToPcm,
   renderSoundToPcm,
+  renderToneToPcm,
   SYNTH_SAMPLE_RATE,
   type SynthState,
   tonePrint,
@@ -54,6 +56,36 @@ describe("sound-synthesis PCM port", () => {
         assert.ok(sample >= -1 && sample <= 1, `${def.name}: ${sample} out of range`);
       }
     }
+  });
+});
+
+describe("sound-synthesis tone rendering", () => {
+  test("a tone renders its CODAL sample count as one constant-pitch segment", () => {
+    const pcm = renderToneToPcm(mkSpeakerToneCommand("square", 440, 250, 1));
+    assert.equal(pcm.length, codalSampleCount(250));
+    // A constant-pitch square at full volume swings between the tone print's
+    // two levels; nothing sweeps or fades across the segment.
+    assert.ok(pcm.some((sample) => sample > 0.9));
+    assert.ok(pcm.some((sample) => sample < -0.9));
+  });
+
+  test("each wave shape renders through its own CODAL tone function", () => {
+    // CODAL's full-volume gain: sampleRange (1023) / 1024, centered on 512.
+    const fullGain = 1023 / 1024;
+    for (const waveform of ["square", "sawtooth", "sine", "triangle"] as const) {
+      const pcm = renderToneToPcm(mkSpeakerToneCommand(waveform, 440, 100, 1));
+      assert.equal(pcm.length, codalSampleCount(100));
+      assertClose(pcm[0] as number, ((tonePrint(waveform, 0) - 512) * fullGain) / 512, 1e-6, waveform);
+    }
+  });
+
+  test("a silent rest and a zero-length tone render no signal", () => {
+    const rest = renderToneToPcm(mkSpeakerToneCommand("square", 0, 100, 1));
+    assert.equal(rest.length, codalSampleCount(100));
+    for (const sample of rest) {
+      assert.equal(sample, 0);
+    }
+    assert.equal(renderToneToPcm(mkSpeakerToneCommand("square", 440, 0, 1)).length, 0);
   });
 });
 

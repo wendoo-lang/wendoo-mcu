@@ -4,6 +4,7 @@ declare module "wendoo" {
     Thermometer: Thermometer;
     SoundEmoji: SoundEmoji;
     PlaySoundOptions: PlaySoundOptions;
+    PlayToneOptions: PlayToneOptions;
     DrawImageOptions: DrawImageOptions;
     ScrollTextOptions: ScrollTextOptions;
     MicroBitAudio: MicroBitAudio;
@@ -30,6 +31,13 @@ declare module "wendoo" {
     immediately?: boolean;
     inBackground?: boolean;
   }
+  export interface PlayToneOptions {
+    duration?: number;
+    volume?: number;
+    waveform?: string;
+    immediately?: boolean;
+    inBackground?: boolean;
+  }
   export interface DrawImageOptions {
     duration?: number;
     immediately?: boolean;
@@ -42,6 +50,7 @@ declare module "wendoo" {
   export interface MicroBitAudio {
     readonly __brand: unique symbol;
     playSound(sound: string, options?: PlaySoundOptions): Promise<void>;
+    playTone(frequency?: number, options?: PlayToneOptions): Promise<void>;
   }
   export interface MicroBit {
     readonly __brand: unique symbol;

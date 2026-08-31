@@ -176,6 +176,28 @@ TEST_CASE("port and fault lines render their fixed shapes") {
   CHECK(sink.text() == expected);
 }
 
+TEST_CASE("speaker lines render the played sound and the tone's port command") {
+  ProgramBuilder b;
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  StringTextSink sink;
+  ObservableTraceWriter writer(sink, image);
+  const uint8_t name[5] = {'h', 'e', 'l', 'l', 'o'};
+  writer.speakerPlay(name, 5);
+  writer.speakerTone(0, 880.0f, 500, 1.0f);
+  writer.speakerTone(1, 262.0f, 300, 0.5f);
+  writer.speakerTone(2, 9999.0f, 0, 0.25f);
+  writer.speakerTone(3, 0.0f, 1000, 0.0f);
+  const std::string expected = "mctrace 1\nprofile 0\nprecision f32\n"
+                               "port speaker play \"hello\"\n"
+                               "port speaker tone square 445c0000 1f4 3f800000\n"
+                               "port speaker tone sawtooth 43830000 12c 3f000000\n"
+                               "port speaker tone sine 461c3c00 0 3e800000\n"
+                               "port speaker tone triangle 00000000 3e8 00000000\n";
+  CHECK(sink.text() == expected);
+}
+
 TEST_CASE("a faulting rule traces the fault line shape and respawns next think") {
   // A synthetic program whose only rule faults immediately: each think emits
   // one fault line carrying a fresh fiber id and the numeric ErrorCode.

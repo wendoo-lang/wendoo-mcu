@@ -193,6 +193,31 @@ void ObservableTraceWriter::speakerPlay(const uint8_t* name, uint32_t length) {
   w_.nl();
 }
 
+void ObservableTraceWriter::speakerTone(uint32_t waveform, mc_number_t frequencyHz,
+                                        uint32_t durationMs, mc_number_t volume) {
+  w_.text("port speaker tone ");
+  switch (waveform) {
+  case 0:
+    w_.text("square ");
+    break;
+  case 1:
+    w_.text("sawtooth ");
+    break;
+  case 2:
+    w_.text("sine ");
+    break;
+  default:
+    w_.text("triangle ");
+    break;
+  }
+  w_.numberBits(frequencyHz);
+  w_.ch(' ');
+  w_.hex(durationMs);
+  w_.ch(' ');
+  w_.numberBits(volume);
+  w_.nl();
+}
+
 void ObservableTraceWriter::radioSend(int type, uint32_t group, mc_number_t value,
                                       const uint8_t* name, uint32_t nameLen, const uint8_t* text,
                                       uint32_t textLen, const uint8_t* bytes, uint32_t bytesLen) {

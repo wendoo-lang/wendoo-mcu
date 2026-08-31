@@ -1,6 +1,8 @@
 import {
   renderAllBuiltInSoundsToPcm,
+  renderToneToPcm,
   type SpeakerPlayingSnapshot,
+  type SpeakerToneCommand,
   SYNTH_SAMPLE_RATE,
 } from "@wendoo/wodal/targets/microbit-v2";
 
@@ -57,9 +59,9 @@ interface ActiveVoice {
 
 /**
  * App-owned Web Audio playback for the simulated micro:bit speaker. It plays the
- * device's built-in sound emoji audibly by rendering each one to PCM with WODAL's
- * faithful CODAL synthesis port and playing it as a single pre-rendered
- * `AudioBuffer`, keyed off the speaker snapshot's `playId`.
+ * device's built-in sound emoji and its plain tones audibly by rendering each to
+ * PCM with WODAL's faithful CODAL synthesis port and playing it as a single
+ * pre-rendered `AudioBuffer`, keyed off the speaker snapshot's `playId`.
  *
  * The renderer owns a single {@link AudioContextLike} shared by every device in
  * the fleet, with one active voice tracked per instance. Feed each instance's
@@ -159,13 +161,14 @@ export class SpeakerAudio {
     }
   }
 
-  /** Plays the named built-in's pre-rendered buffer and records the active voice. */
+  /** Plays the snapshot's tone or named built-in and records the active voice. */
   private startVoice(instanceId: string, playing: SpeakerPlayingSnapshot): void {
     const context = this.context;
     if (context === undefined || context.state !== "running") {
       return;
     }
-    const buffer = this.bufferFor(context, playing.name);
+    const buffer =
+      playing.tone === undefined ? this.bufferFor(context, playing.name) : this.toneBuffer(context, playing.tone);
     if (buffer === undefined) {
       return;
     }
@@ -204,12 +207,35 @@ export class SpeakerAudio {
     if (pcm === undefined) {
       return undefined;
     }
-    const buffer = context.createBuffer(1, pcm.length, SYNTH_SAMPLE_RATE);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < pcm.length; i++) {
-      data[i] = (pcm[i] as number) * MASTER_GAIN;
+    const buffer = playbackBuffer(context, pcm);
+    if (buffer !== undefined) {
+      this.buffersByName.set(name, buffer);
     }
-    this.buffersByName.set(name, buffer);
     return buffer;
   }
+
+  /**
+   * Returns a freshly rendered playback buffer for one tone, synthesized by the
+   * same port that renders the built-in sounds. Undefined for a tone that
+   * renders no samples, such as a zero-duration tone (a silent no-op).
+   */
+  private toneBuffer(context: AudioContextLike, tone: SpeakerToneCommand): AudioBufferLike | undefined {
+    return playbackBuffer(context, renderToneToPcm(tone));
+  }
+}
+
+/**
+ * Copies rendered PCM into a fresh single-channel playback buffer at the master
+ * gain, or undefined when the PCM is empty (no buffer can be created for it).
+ */
+function playbackBuffer(context: AudioContextLike, pcm: Float32Array): AudioBufferLike | undefined {
+  if (pcm.length === 0) {
+    return undefined;
+  }
+  const buffer = context.createBuffer(1, pcm.length, SYNTH_SAMPLE_RATE);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < pcm.length; i++) {
+    data[i] = (pcm[i] as number) * MASTER_GAIN;
+  }
+  return buffer;
 }

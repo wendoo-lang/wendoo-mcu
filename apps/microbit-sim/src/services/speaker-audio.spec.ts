@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { renderBuiltInSoundToPcm, type SpeakerPlayingSnapshot } from "@wendoo/wodal/targets/microbit-v2";
+import {
+  mkSpeakerToneCommand,
+  renderBuiltInSoundToPcm,
+  renderToneToPcm,
+  type SpeakerPlayingSnapshot,
+  type SpeakerToneCommand,
+} from "@wendoo/wodal/targets/microbit-v2";
 import type { AudioBufferLike, AudioBufferSourceNodeLike, AudioContextLike, AudioNodeLike } from "./speaker-audio";
 import { SpeakerAudio } from "./speaker-audio";
 
@@ -74,6 +80,11 @@ class MockAudioContext implements AudioContextLike {
 
 function playing(name: string, playId: number): SpeakerPlayingSnapshot {
   return { name, playId, startedAt: 0, durationMs: 1000 };
+}
+
+/** A speaker snapshot carrying a playing tone, as the tone port publishes it. */
+function playingTone(tone: SpeakerToneCommand, playId: number): SpeakerPlayingSnapshot {
+  return { name: "", tone, playId, startedAt: 0, durationMs: tone.durationMs };
 }
 
 /** The rendered PCM length microbit-sim's buffer for a built-in should carry. */
@@ -168,6 +179,83 @@ describe("SpeakerAudio", () => {
     audio.unlock();
     audio.sync("d1", playing("not-a-sound", 1));
     assert.equal(ctx.bufferSources.length, 0);
+  });
+
+  it("plays a rendered tone buffer of the expected length when the snapshot carries a tone", () => {
+    const ctx = new MockAudioContext();
+    const audio = new SpeakerAudio(() => ctx);
+    audio.unlock();
+    const tone = mkSpeakerToneCommand("square", 880, 250, 1);
+    audio.sync("d1", playingTone(tone, 1));
+    assert.equal(ctx.bufferSources.length, 1);
+    const source = ctx.bufferSources[0];
+    assert.ok(source);
+    assert.equal(source.buffer?.length, renderToneToPcm(tone).length);
+    assert.notEqual(source.started, undefined);
+    assert.equal(source.connected, 1);
+  });
+
+  it("fills a tone's buffer with audible samples", () => {
+    const ctx = new MockAudioContext();
+    const audio = new SpeakerAudio(() => ctx);
+    audio.unlock();
+    audio.sync("d1", playingTone(mkSpeakerToneCommand("square", 880, 250, 1), 1));
+    const buffer = ctx.buffers[0];
+    assert.ok(buffer);
+    assert.ok(
+      buffer.getChannelData().some((sample) => sample !== 0),
+      "a sounding tone should render non-zero samples"
+    );
+  });
+
+  it("plays a 0 Hz rest as a silent buffer of its full length", () => {
+    const ctx = new MockAudioContext();
+    const audio = new SpeakerAudio(() => ctx);
+    audio.unlock();
+    const rest = mkSpeakerToneCommand("square", 0, 250, 1);
+    audio.sync("d1", playingTone(rest, 1));
+    assert.equal(ctx.bufferSources.length, 1);
+    const buffer = ctx.buffers[0];
+    assert.ok(buffer);
+    assert.equal(buffer.length, renderToneToPcm(rest).length);
+    assert.ok(
+      buffer.getChannelData().every((sample) => sample === 0),
+      "a rest should render silence"
+    );
+  });
+
+  it("treats a tone that renders no samples as a silent no-op", () => {
+    const ctx = new MockAudioContext();
+    const audio = new SpeakerAudio(() => ctx);
+    audio.unlock();
+    audio.sync("d1", playingTone(mkSpeakerToneCommand("sine", 440, 0, 1), 1));
+    assert.equal(ctx.bufferSources.length, 0);
+  });
+
+  it("renders each tone play its own buffer", () => {
+    const ctx = new MockAudioContext();
+    const audio = new SpeakerAudio(() => ctx);
+    audio.unlock();
+    const short = mkSpeakerToneCommand("square", 880, 100, 1);
+    const long = mkSpeakerToneCommand("square", 880, 400, 1);
+    audio.sync("d1", playingTone(short, 1));
+    audio.sync("d1", playingTone(long, 2));
+    assert.equal(ctx.buffers.length, 2);
+    assert.equal(ctx.buffers[0]?.length, renderToneToPcm(short).length);
+    assert.equal(ctx.buffers[1]?.length, renderToneToPcm(long).length);
+  });
+
+  it("stops a playing built-in when a tone preempts it", () => {
+    const ctx = new MockAudioContext();
+    const audio = new SpeakerAudio(() => ctx);
+    audio.unlock();
+    audio.sync("d1", playing("hello", 1));
+    const first = ctx.bufferSources[0];
+    assert.ok(first);
+    audio.sync("d1", playingTone(mkSpeakerToneCommand("triangle", 660, 200, 1), 2));
+    assert.equal(first.disconnected, true);
+    assert.notEqual(first.stopped, undefined);
+    assert.equal(ctx.bufferSources.length, 2);
   });
 
   it("drops voices for instances no longer retained", () => {

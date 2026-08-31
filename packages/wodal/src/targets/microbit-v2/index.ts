@@ -28,7 +28,10 @@ export { MicroBitDisplay } from "./microbit-display";
 export {
   MicroBitSpeaker,
   type MicroBitSpeakerSnapshot,
+  mkSpeakerToneCommand,
   type SpeakerPlayingSnapshot,
+  type SpeakerToneCommand,
+  type SpeakerToneWaveform,
 } from "./microbit-speaker";
 export {
   type DecodedSoundSegment,
@@ -48,6 +51,7 @@ export {
   renderAllBuiltInSoundsToPcm,
   renderBuiltInSoundToPcm,
   renderSoundToPcm,
+  renderToneToPcm,
   SYNTH_SAMPLE_RATE,
 } from "./sound-synthesis";
 export {

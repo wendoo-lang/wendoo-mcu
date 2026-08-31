@@ -170,12 +170,22 @@ struct RecordingSpeaker : wendoo::SpeakerPort {
     std::string name;
     wendoo::mc_number_t requestTimeMs;
   };
+  struct Tone {
+    wendoo::SpeakerToneCommand command;
+    wendoo::mc_number_t requestTimeMs;
+  };
   std::vector<Play> plays;
+  std::vector<Tone> tones;
   int preempts = 0;
 
   void playSoundEmoji(const uint8_t* name, uint32_t length, wendoo::mc_number_t requestTimeMs,
                       wendoo::AsyncHandle) override {
     plays.push_back({std::string(reinterpret_cast<const char*>(name), length), requestTimeMs});
+  }
+
+  void playTone(const wendoo::SpeakerToneCommand& tone, wendoo::mc_number_t requestTimeMs,
+                wendoo::AsyncHandle) override {
+    tones.push_back({tone, requestTimeMs});
   }
 
   void preempt() override { preempts++; }
@@ -301,6 +311,15 @@ TEST_CASE("a host stub can implement every device port") {
   REQUIRE(speaker.plays.size() == 1);
   CHECK(speaker.plays[0].name == "hello");
   CHECK(speaker.plays[0].requestTimeMs == 250);
+  const wendoo::SpeakerToneCommand tone{wendoo::SpeakerToneWaveform::Sine, 440.0f, 250, 0.5f};
+  ports.speaker->playTone(tone, 300, wendoo::AsyncHandle{});
+  REQUIRE(speaker.tones.size() == 1);
+  CHECK(speaker.tones[0].command.waveform == wendoo::SpeakerToneWaveform::Sine);
+  CHECK(speaker.tones[0].command.frequencyHz == 440.0f);
+  CHECK(speaker.tones[0].command.durationMs == 250);
+  CHECK(speaker.tones[0].command.volume == 0.5f);
+  CHECK(speaker.tones[0].requestTimeMs == 300);
+
   ports.speaker->preempt();
   CHECK(speaker.preempts == 1);
 }

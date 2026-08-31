@@ -171,6 +171,7 @@ describe("microbit embedded layers -- the manifest-driven bundle matches the han
       ["index.ts", read("../../../../packages/wodal/targets/microbit-v2/lib/index.ts")],
       ["image.ts", read("../../../../packages/wodal/targets/microbit-v2/lib/image.ts")],
       ["sounds.ts", read("../../../../packages/wodal/targets/microbit-v2/lib/sounds.ts")],
+      ["waveforms.ts", read("../../../../packages/wodal/targets/microbit-v2/lib/waveforms.ts")],
       ["wendoo.microbit-v2.d.ts", read("../../../../packages/wodal/targets/microbit-v2/lib/wendoo.microbit-v2.d.ts")],
       ["wendoo.json", read("../../../../packages/wodal/targets/microbit-v2/lib/wendoo.json")],
     ]);

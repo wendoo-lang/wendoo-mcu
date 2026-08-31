@@ -1,0 +1,22 @@
+mctrace 1
+profile 1
+precision f32
+tick 1 time 42c80000 dt 00000000
+action 4 site 0 args 0 result bool 1
+port speaker tone triangle 43dc0000 c8 3f800000
+action 411 site 1 args 9 number 43dc0000 number 3e4ccccd nil nil nil nil nil nil nil async
+tick 2 time 43480000 dt 42c80000
+tick 3 time 43960000 dt 42c80000
+tick 4 time 43c80000 dt 42c80000
+port speaker tone triangle 00000000 c8 00000000
+action 411 site 2 args 9 number 00000000 number 3e4ccccd nil nil nil nil nil nil nil async
+tick 5 time 43fa0000 dt 42c80000
+tick 6 time 44160000 dt 42c80000
+tick 7 time 442f0000 dt 42c80000
+port speaker tone triangle 44250000 c8 3f800000
+action 411 site 3 args 9 number 44250000 number 3e4ccccd nil nil nil nil nil nil nil async
+tick 8 time 44480000 dt 42c80000
+tick 9 time 44610000 dt 42c80000
+tick a time 447a0000 dt 42c80000
+port display set-pixel 00000000 00000000 437f0000
+action 401 site 4 args 3 nil nil nil result void

@@ -136,6 +136,9 @@ int main()
     // audio.playSound host function) reach the speaker and the heap (to read
     // the sound name string); the heap is filled once the heap exists.
     MicroBitV2PlaySoundEnv playSoundEnv{&speaker, nullptr};
+    // The audio.playTone host function reaches the speaker and the heap (to read
+    // its options struct and waveform name); the heap is filled once it exists.
+    MicroBitV2PlayToneEnv playToneEnv{&speaker, nullptr};
     // The I2C write body reaches the bus port, the heap (to resolve a managed
     // Buffer argument), and the program (to resolve a borrowed one); its heap is
     // filled once the heap exists.
@@ -176,7 +179,7 @@ int main()
     }
     auto hostFuncs =
         makeMicroBitV2HostFuncBindings(ports, &drawEnv, &i2cWriteEnv, &i2cReadEnv, &radioEnv,
-                                       &radioReceiveEnv, &scrollEnv, &playSoundEnv);
+                                       &radioReceiveEnv, &scrollEnv, &playSoundEnv, &playToneEnv);
     ManagedHeap heap(arena, &image);
     TypeRegistry types(image);
     auto nativeStructs = makeMicroBitV2NativeStructBindings(types);
@@ -198,6 +201,7 @@ int main()
     scrollEnv.heap = &heap;
     drawEnv.heap = &heap;
     playSoundEnv.heap = &heap;
+    playToneEnv.heap = &heap;
     i2cWriteEnv.heap = &heap;
     i2cReadEnv.heap = &heap;
     i2cReadEnv.roots = &scheduler;

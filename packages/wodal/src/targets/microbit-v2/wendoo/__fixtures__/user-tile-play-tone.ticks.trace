@@ -1,0 +1,21 @@
+mctrace 1
+profile 1
+precision f32
+tick 1 time 42c80000 dt 00000000
+action 4 site 0 args 0 result bool 1
+tile 0 site 1 args 0 async
+tick 2 time 43480000 dt 42c80000
+port speaker tone triangle 445c0000 1f4 3f800000
+tick 3 time 43960000 dt 42c80000
+tick 4 time 43c80000 dt 42c80000
+tick 5 time 43fa0000 dt 42c80000
+tick 6 time 44160000 dt 42c80000
+tick 7 time 442f0000 dt 42c80000
+tick 8 time 44480000 dt 42c80000
+tile 1 site 2 args 0 async
+tick 9 time 44610000 dt 42c80000
+port speaker tone square 43830000 12c 3f000000
+tick a time 447a0000 dt 42c80000
+tick b time 44898000 dt 42c80000
+tick c time 44960000 dt 42c80000
+port display set-pixel 40800000 40800000 437f0000

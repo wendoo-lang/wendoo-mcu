@@ -10,6 +10,7 @@
 #include "targets/microbit-v2/abi/host-actions/actuators/display-scroll.h"
 #include "targets/microbit-v2/abi/host-actions/actuators/display-set-pixel.h"
 #include "targets/microbit-v2/abi/host-actions/actuators/play-sound.h"
+#include "targets/microbit-v2/abi/host-actions/actuators/play-tone.h"
 #include "targets/microbit-v2/abi/host-actions/actuators/radio-send.h"
 #include "targets/microbit-v2/abi/host-actions/actuators/set-radio-group.h"
 #include "targets/microbit-v2/abi/host-actions/sensors/button-sensor.h"
@@ -22,7 +23,7 @@ namespace wendoo
 {
 
 /** Number of microbit-v2 host-action bindings the slice registers. */
-inline constexpr uint32_t kMicroBitV2HostActionBindingCount = 17;
+inline constexpr uint32_t kMicroBitV2HostActionBindingCount = 18;
 
 /**
  * Builds the microbit-v2 host-action binding table over `ports`, one entry per
@@ -31,8 +32,8 @@ inline constexpr uint32_t kMicroBitV2HostActionBindingCount = 17;
  * program); the async play-sound body uses `playSoundEnv` (its speaker port and
  * heap); the four button sensors use `buttonEnv` (the button port plus the
  * heap and roots backing their per-callsite state); the gesture sensor reads the
- * accelerometer port and the light-level sensor reads the display port, both
- * stateless and straight off `ports`. Pass null for
+ * accelerometer port, the light-level sensor reads the display port, and the
+ * async play-tone body reads the speaker port, each straight off `ports`. Pass null for
  * an env when the table will never dispatch its actions. `ports` and any supplied
  * env must outlive every dispatch through the table.
  */
@@ -71,6 +72,7 @@ makeMicroBitV2HostActionBindings(DevicePorts &ports,
         {MicroBitV2HostActions::DisplayClear.actionId, &execDisplayClearAction, nullptr, &ports},
         {MicroBitV2HostActions::LightLevel.actionId, &execLightLevelSensor, nullptr, &ports},
         {MicroBitV2HostActions::Temperature.actionId, &execTemperatureSensor, nullptr, &ports},
+        {MicroBitV2HostActions::PlayTone.actionId, nullptr, nullptr, &ports, &execPlayTone},
     }};
 }
 

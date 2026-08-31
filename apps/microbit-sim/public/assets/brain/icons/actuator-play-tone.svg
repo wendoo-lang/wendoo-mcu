@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="100%" height="100%" viewBox="0 0 64 64" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <filter id="halo" x="-15%" y="-15%" width="130%" height="130%">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="2.2" result="dilated"/>
+            <feFlood flood-color="#ffffff" result="white"/>
+            <feComposite in="white" in2="dilated" operator="in" result="outline"/>
+            <feMerge>
+                <feMergeNode in="outline"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+    </defs>
+    <g filter="url(#halo)">
+        <clipPath id="board-tone"><rect x="6" y="10" width="52" height="43" rx="5"/></clipPath>
+        <rect x="6" y="10" width="52" height="43" rx="5" fill="#262b33"/>
+        <g clip-path="url(#board-tone)">
+            <rect x="12" y="46" width="3" height="7" fill="#d9b23d"/>
+            <rect x="17.5" y="46" width="3" height="7" fill="#d9b23d"/>
+            <rect x="23" y="46" width="3" height="7" fill="#d9b23d"/>
+            <rect x="28.5" y="46" width="3" height="7" fill="#d9b23d"/>
+            <rect x="34" y="46" width="3" height="7" fill="#d9b23d"/>
+            <rect x="39.5" y="46" width="3" height="7" fill="#d9b23d"/>
+            <rect x="45" y="46" width="3" height="7" fill="#d9b23d"/>
+            <rect x="50.5" y="46" width="3" height="7" fill="#d9b23d"/>
+        </g>
+        <rect x="20.25" y="15" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="25.25" y="15" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="30.25" y="15" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="35.25" y="15" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="40.25" y="15" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="20.25" y="20" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="25.25" y="20" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="30.25" y="20" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="35.25" y="20" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="40.25" y="20" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="20.25" y="25" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="25.25" y="25" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="30.25" y="25" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="35.25" y="25" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="40.25" y="25" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="20.25" y="30" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="25.25" y="30" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="30.25" y="30" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="35.25" y="30" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="40.25" y="30" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="20.25" y="35" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="25.25" y="35" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="30.25" y="35" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="35.25" y="35" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="40.25" y="35" width="3.5" height="3.5" rx="0.8" fill="#3c434d"/>
+        <rect x="9.5" y="23.5" width="7" height="7" rx="1.8" fill="#525a66"/>
+        <rect x="47.5" y="23.5" width="7" height="7" rx="1.8" fill="#525a66"/>
+        <path d="M 15 29 L 19.5 29 L 25 23 L 25 41 L 19.5 35 L 15 35 Z" fill="#f5f7fa"/>
+        <path d="M 29 38.5 L 29 25.5 L 35 25.5 L 35 38.5 L 41 38.5 L 41 25.5 L 47 25.5" fill="none" stroke="#d9b23d" stroke-width="3" stroke-linecap="round" stroke-linejoin="miter"/>
+    </g>
+</svg>

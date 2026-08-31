@@ -129,6 +129,10 @@ struct NullSpeaker : wendoo::SpeakerPort {
                       wendoo::AsyncHandle handle) override {
     handle.resolve(wendoo::kVoidValue);
   }
+  void playTone(const wendoo::SpeakerToneCommand&, wendoo::mc_number_t,
+                wendoo::AsyncHandle handle) override {
+    handle.resolve(wendoo::kVoidValue);
+  }
   void preempt() override {}
 };
 

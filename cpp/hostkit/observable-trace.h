@@ -164,6 +164,20 @@ public:
   void speakerPlay(const uint8_t* name, uint32_t length);
 
   /**
+   * Records one constant-pitch tone play accepted by the speaker device port,
+   * with the values as they crossed the port (after the port's clamps and the
+   * 0 Hz silent-rest encoding).
+   *
+   * @param waveform - Wave shape, as its `SpeakerToneWaveform` ordinal; renders
+   *   as the wave-shape word.
+   * @param frequencyHz - Clamped pitch in Hz.
+   * @param durationMs - Whole-millisecond play length; renders in hex.
+   * @param volume - Clamped volume as a 0-1 fraction of full tone volume.
+   */
+  void speakerTone(uint32_t waveform, mc_number_t frequencyHz, uint32_t durationMs,
+                   mc_number_t volume);
+
+  /**
    * Records one packet transmitted across the radio device port: the group in
    * hex, then the typed payload. `type` is a MakeCode packet type (0-5) or -1
    * for a raw datagram. The payload renders as `number <bits>` / `double <bits>`

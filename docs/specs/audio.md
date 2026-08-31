@@ -9,7 +9,8 @@ sound effects** (a ramping saw wave with tremolo, sci-fi sweeps, and the like) i
 playing them on the device; the device's built-in named sounds play through the same tile. The
 family model and types are **target-agnostic**; the audio capability (speaker, waveforms,
 effects, pitch range, built-in sounds) is **defined by the target**. The first - and currently
-only - target is micro:bit-v2. The first member is **play sound**.
+only - target is micro:bit-v2. The members are **play sound** (built-in and authored sounds) and
+**playTone** (the `beep` tile - a plain constant-pitch tone).
 
 This is an evolving family spec; the settled design is below, with unresolved items collected under
 **Open questions** at the end. Musical note sequences, melodies, and chords are a deliberately
@@ -47,7 +48,10 @@ The audio family is delivered on the three standard surfaces:
   **`in background`** modifiers - the display family's pair, interpreted the same way against
   the speaker lease (see Arbitration). A bare `play sound` plays the target's default built-in
   sound. A **`create a sound`** factory tile opens the sound-effect editor and produces a
-  `Sound` value.
+  `Sound` value. The **`beep`** actuator (internally `playTone`) plays a plain constant-pitch
+  tone: an optional anonymous frequency, optional named **`duration`** and **`volume`**
+  parameters, and an optional wave-shape modifier (`square` / `sawtooth` / `sine` /
+  `triangle`), through the same lease and modifier pair (see Member: playTone).
 - **Device API.** `ctx.microbit.audio` (registry: `microbit-context.md`) has an awaited
   **`playSound(sound, options?)`** method taking a built-in sound name (a name outside the
   target's built-in set is a silent no-op that resolves at once) plus an optional
@@ -56,7 +60,16 @@ The audio family is delivered on the three standard surfaces:
   current sound stops and its awaiting rule resolves), and `inBackground` resolves the call at
   dispatch so the caller continues without awaiting playback. Both flags default false and the
   bag is optional, so a bare `playSound(sound)` is awaited and reject-by-default -- a play
-  requested while the speaker is busy is dropped. The `Sound` type is visible to TS user code.
+  requested while the speaker is busy is dropped. An awaited **`playTone(frequency?, options?)`**
+  method mirrors the `beep` tile: `frequency` in Hz (default 880, clamped into the target's
+  usable pitch range; 0 plays a silent rest for the duration), and an optional
+  **`PlayToneOptions`** bag --
+  `{ duration?, volume?, waveform?, immediately?, inBackground? }` -- with `duration` in
+  seconds (default 0.5), `volume` a 0-1 fraction of full tone volume (default 1), `waveform`
+  one of `"square" | "sawtooth" | "sine" | "triangle"` (default `"triangle"`; a name outside
+  that set is a silent no-op that resolves at once, as an unknown built-in sound name is),
+  and the two lease flags behaving as in `PlaySoundOptions`. The `Sound` type is
+  visible to TS user code.
 - **Simulator - the sound-effect editor.** A **custom literal factory** bound to the `Sound`
   type - a simplified, friendlier sfxr: the controls are the `Sound` fields (waveform, base
   frequency, duration, volume, a frequency sweep, a vibrato, and a volume envelope / fade in-out),
@@ -131,6 +144,139 @@ playback (the only polyphony case) is handled by the lease, not by summing voice
   current sound (its rule resolves) and plays.
 - Completion: `start + sum(segment durations)` vs VM tick time. Negative-duration segments are
   dropped per Durations and looping.
+
+## Member: playTone (the beep tile)
+
+An async actuator placed in `do` that plays a short plain tone at a constant pitch - the
+classic feedback beep. The internal action name is **`playTone`**; the tile label is
+**`beep`**. A tone is the **degenerate one-segment sound**: one waveform at a constant
+frequency for a fixed duration, with no sweep, vibrato, or envelope. It rides the family
+machinery end to end (the lease, the async-play pattern, the duration-formula completion);
+no new synthesis or arbitration is added. TS user code reaches the same effect through
+`ctx.microbit.audio.playTone` (see Surfaces).
+
+### Identity
+
+| Field         | Value |
+| ------------- | ----- |
+| Kind          | actuator |
+| Stance        | async / awaited actuator (temporal) - the family stance; there is no instantaneous audio |
+| Composability | rule action (placed in `do`) |
+| Module        | microbit-v2 (`wendoo.microbit-v2`) |
+| Internal name | `playTone` - the action key; the tile key derives from it |
+| Label         | `beep` |
+| Action / fn ids | Action `1041`, actuator fn `1081`, `MicroBitAudio.playTone` fn `1082` (with the `PlayToneOptions` type-atom id `1041`); append-only |
+
+### Authoring
+
+```
+do: beep                        // default pitch, triangle, 0.5 s
+do: beep 440                    // 440 Hz, triangle, 0.5 s
+do: beep duration 2             // default pitch, triangle, 2 s
+do: beep 1200 sine duration 0.1 // 1200 Hz sine, 0.1 s
+do: beep 440 volume 0.2         // 440 Hz triangle, quiet, 0.5 s
+```
+
+### Arguments / modifiers
+
+A `bag` of three optional params, an optional wave-shape modifier choice, and the family's
+shared lease-modifier pair:
+
+| Slot | Name        | mod/param | Type   | Required | Anonymous | Default |
+| ---- | ----------- | --------- | ------ | -------- | --------- | ------- |
+| 0    | (frequency) | param     | Number | no       | yes       | `880` Hz |
+| 1    | duration    | param     | Number | no       | no        | `0.5` s |
+| 2    | volume      | param     | Number | no       | no        | `1` |
+| 3    | square      | mod       | -      | no       | -         | - |
+| 4    | sawtooth    | mod       | -      | no       | -         | - |
+| 5    | sine        | mod       | -      | no       | -         | - |
+| 6    | triangle    | mod       | -      | no       | -         | the default shape |
+
+- **frequency** - the tone pitch in Hz. **0 is a rest**: it plays silence for the duration,
+  still awaiting and leasing the speaker, so a rule can sequence beeps and pauses with one
+  tile. The target clamps the value into its usable pitch range (pitch realization is the
+  target's, per Target parameterization; on micro:bit-v2 the range is 0-9999 Hz - see the
+  target section).
+- **duration** - the tone length in **seconds**, fractional allowed (the `pause` convention).
+  Reuses the existing shared `microbit-v2.duration` parameter tile (the draw family's,
+  seconds-typed), so its label, icon, and doc page are already shipped.
+- **volume** - the tone's volume as a **0-1 fraction** of full (default 1), clamped into
+  0-1; 0 is silent, and the silent tone still leases the speaker for its duration. It scales
+  the tone only - the device master volume still applies on top. A new named parameter tile
+  (the catalog ships no volume parameter to reuse). It must stay named, never anonymous: a
+  second anonymous Number would be indistinguishable from the frequency.
+- **Wave shape** - an `optional(choice(square, sawtooth, sine, triangle))` of plain modifiers:
+  at most one appears; none means triangle (the cleaner-sounding default; an explicit
+  `square` gives the classic harsh beep). Each selects the `Sound` waveform / target tone
+  function for the segment. Square plays at the default duty (the duty control belongs to the
+  `Sound` editor). Noise is not in the set - a pitched beep and noise are an odd fit; authored
+  `Sound`s cover it.
+- Defaults live in the body, not the grammar: an absent/nil slot reads as the default above,
+  and a non-finite frequency or duration also reads as its default.
+- **Lease modifiers:** the shared **`immediately`** and **`in background`** pair, interpreted
+  against the speaker lease exactly as for `play sound` (see Arbitration). `in background` is
+  the expected shape for feedback beeps in reactive rules - the rule continues instead of
+  parking for the beep's duration.
+
+### Behavior
+
+- Dispatched under the speaker lease (see Arbitration): default drops the beep when the speaker
+  is busy (completes immediately, no error), `immediately` preempts the current sound,
+  `in background` resolves the handle at dispatch while the tone holds the lease.
+- When accepted, the tone is handed to the target's synthesis engine as a single
+  constant-pitch segment of the selected waveform; the rule awaits the duration and the
+  speaker is leased for that time.
+- Completion: `start + round(duration * 1000)` ms vs VM tick time - the family formula with one
+  segment.
+- Edge cases follow Durations and looping: a negative duration is the dropped-segment case (the
+  beep is silently dropped and the actuator resolves immediately, no fault); a zero duration is
+  allowed (a zero-length tone that resolves immediately).
+
+### Device and trace
+
+- **Device port:** the same speaker port as `play sound`; the play command carries the
+  waveform, the clamped frequency, the duration, and the clamped volume. The tile and
+  `ctx.microbit.audio.playTone` issue the same command. The waveform crosses the port as an
+  enumerated value, never as text: the tile's modifier slot and the Device API's waveform
+  string each resolve to it once at dispatch, so waveform names appear on device only as
+  the small fixed lookup table the Device API parse reads.
+- **Observable trace:** `port speaker tone <waveform> <frequencyHz> <durationMs> <volume>`
+  plus the async action dispatch line. The field names here are shorthand; the exact wire
+  encodings (f32 bit patterns for frequency and volume, minimal hex for durationMs) are
+  pinned in the observable-trace contract, which is authoritative for the C++ mirror. A dropped tone (busy speaker, or negative duration) emits no
+  port line - the dispatch line records the attempt, mirroring `play sound`.
+
+### Catalog metadata (assistant, docs, art)
+
+- **`grammarNote`** - the assistant-facing rule sentence the LLM catalog digest reads. It must
+  state what the argument grammar does not: the units and defaults of both params, that the
+  wave shapes default to triangle, and the lease behavior (in `play sound`'s wording). Required
+  text:
+
+  > Plays a plain tone: the bare number is the pitch in Hz (default 880; 0 plays silence
+  > for the duration, a rest), "duration" is in seconds (default 0.5), "volume" is 0 to 1
+  > (default 1), and one wave-shape word (square / sawtooth / sine / triangle) picks the
+  > sound, triangle when none is given. The rule holds until the tone ends: until
+  > then a rule under it does not get its turn, and this rule cannot fire again. A tone asked
+  > for while a sound is playing is dropped; add "in background" to let the rule carry on, or
+  > "immediately" to cut off the sound that is playing.
+
+- **Doc pages** - the tile needs a proper author-facing doc page, delivered through the
+  target tile-docs pipeline: a markdown file under the wodal package's
+  `targets/microbit-v2/docs/en/tiles/` directory (the `play sound` page's format: the
+  brain-frame header block, a title + summary line, then a body with `tile:` cross-references)
+  plus its `MICROBIT_V2_TILE_DOCS` manifest entry - the rehearsal pairing check fails when
+  either half is missing. Content: what a beep is, the params with units and defaults, the
+  wave-shape modifiers, the lease modifiers, and a couple of worked examples including a
+  beep-and-rest sequence. Each net-new tile - the four wave-shape modifiers and the `volume`
+  parameter - gets its own page the same way. Required at
+  implementation; the doc pages ship with the tile, not after it.
+- **Tile art** - icons are the app's, not wodal metadata: `apps/microbit-sim` maps tile id ->
+  icon URL in its tile-visuals table (under `assets/brain/icons/`). Required at
+  implementation: an icon for the `beep` action tile, one waveform-glyph icon per
+  wave-shape modifier (square / sawtooth / sine / triangle wave outlines), and an icon for
+  the new `volume` parameter. The `duration` parameter and the shared lease modifier pair
+  reuse already-shipped tiles, icons, and doc pages.
 
 ## Built-in sounds as literals
 
@@ -252,6 +398,24 @@ The concrete fill-in of the target-parameterized pieces for micro:bit-v2:
   sound-effect editor (the Simulator); type-atom id appended at implementation (append-only).
 - **`SoundEmoji` type:** the registered struct a built-in sound literal carries (`{ name }`);
   target-side, since the built-in set is target-owned. Type-atom id appended at implementation.
+- **playTone (beep):** encodes to a single CODAL `SoundEffect` - the selected waveform's tone
+  function (`TriangleTone` default / `SquareWaveTone` / `SawtoothTone` / `SineTone`), constant
+  frequency (no interpolation effect), flat volume - the 0-1 `volume` fraction passes straight
+  through as the `SoundEffect` volume, itself a 0-1 float the synthesizer scales across its
+  0-1023 sample range - duration from the call - played through the same synthesizer path as
+  an authored `Sound`; the sim renders it via the faithful synthesis port. Tile action id `1041` (actuator fn `1081`); the `MicroBitAudio.playTone` host-function
+  id is `1082` and the `PlayToneOptions` type-atom id is `1041`. The pitch clamp is
+  **0-9999 Hz**: the range of CODAL's
+  sound-expression frequency encoding (4 decimal digits; the expression parser rejects a
+  negative frequency, so negatives clamp to 0 before anything reaches the driver),
+  comfortably below the synthesizer's 22050 Hz Nyquist bound at its 44100 Hz sample rate.
+  A 0 Hz tone is a rest: the port encodes it at volume 0 rather than letting the
+  synthesizer emit its 0 Hz output (a constant full-level sample - a DC segment that pops
+  and loads the speaker). Both VMs clamp and encode identically at the audio port, so the
+  traced value is the clamped one. The micro:bit standard library (`lib-microbit-v2`)
+  exports the wave-shape names as a **`waveforms` const object** (`waveforms.square`,
+  `waveforms.sawtooth`, `waveforms.sine`, `waveforms.triangle`, string-literal-typed), the
+  discoverable, typo-safe way for TS user code to name a wave shape in `playTone`.
 - **play sound:** action / function ids assigned at implementation (append-only). On device the
   sound expression is sequenced by the synthesizer; **in the sim it is rendered by a faithful
   port of the same synthesis** - the device's tone functions (the phase-indexed waveform tables)
@@ -266,7 +430,8 @@ The concrete fill-in of the target-parameterized pieces for micro:bit-v2:
 - The wodal microbit module is the oracle; the C++ port mirrors it. Audio output is **not**
   byte-trace-matchable (it is an analog waveform), so parity is over the **play command** issued
   to the audio port - the sound's encoded segments (or built-in name) + durations - not the sound.
-  Trace: a speaker-port line for the play (`port speaker play "<name>"` for a built-in; the
+  Trace: a speaker-port line for the play (`port speaker play "<name>"` for a built-in,
+  `port speaker tone <waveform> <frequencyHz> <durationMs> <volume>` for a tone; the
   authored-sound form is pinned with the `Sound` type) plus the async `action ... async`
   dispatch line. A play the busy speaker drops - or an unknown name - emits no port line (the
   dispatch line records the attempt), mirroring the display draw. Completion resolves on VM

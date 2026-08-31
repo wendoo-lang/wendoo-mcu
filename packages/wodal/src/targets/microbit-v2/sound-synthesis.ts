@@ -1,3 +1,4 @@
+import type { SpeakerToneCommand } from "./microbit-speaker";
 import { decodeBuiltInSoundRaw, type RawSoundEffect, type RawToneEffect, type SoundWaveform } from "./sound-expression";
 import { BUILT_IN_SOUNDS } from "./wendoo/built-in-sounds";
 
@@ -277,6 +278,28 @@ export function renderSoundToPcm(effects: readonly RawSoundEffect[]): Float32Arr
     writeOffset += determineSampleCount(fx.durationMs);
   }
   return output;
+}
+
+/**
+ * Renders a speaker tone command to mono PCM at {@link SYNTH_SAMPLE_RATE} as a
+ * single constant-pitch segment: the command's waveform sounded at its frequency
+ * and volume for its duration, with no sweep, vibrato, or envelope. A command
+ * with a zero or negative duration renders no samples.
+ *
+ * @param command - The tone accepted by the speaker port.
+ * @returns Mono PCM samples in `[-1, 1]`.
+ */
+export function renderToneToPcm(command: SpeakerToneCommand): Float32Array {
+  const flat: RawToneEffect = { kind: "none", steps: 0, param0: 0 };
+  return renderSoundToPcm([
+    {
+      waveform: command.waveform,
+      frequency: command.frequencyHz,
+      volume: command.volume,
+      durationMs: Math.max(command.durationMs, 0),
+      effects: [flat, flat, flat],
+    },
+  ]);
 }
 
 /**

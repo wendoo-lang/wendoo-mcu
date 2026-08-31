@@ -60,6 +60,17 @@ change `vm-contract.md`.
   port; `<name>` is the built-in sound's name. A play the busy speaker drops, or a
   name outside the target's built-in set (a no-op), emits no such line (mirroring
   the display draw; the `action ... async` dispatch line records the attempt).
+- `port speaker tone <waveform> <frequencyBits> <durationMs> <volumeBits>` - one
+  constant-pitch tone play accepted by the speaker port. `<waveform>` is the
+  wave-shape word (`square` / `sawtooth` / `sine` / `triangle`);
+  `<frequencyBits>` is the clamped pitch in Hz and `<volumeBits>` the clamped 0-1
+  volume fraction, both as IEEE-754 bit patterns at the profile precision;
+  `<durationMs>` is the whole-millisecond play length in minimal lowercase hex.
+  The three values are recorded as they crossed the port, so the pitch clamp
+  (0-9999 Hz), the volume clamp (0-1), and the 0 Hz silent-rest encoding (a 0 Hz
+  tone crosses with volume 0) are all visible in the trace. A tone the busy
+  speaker drops, or one whose duration is negative (a dropped segment), emits no
+  such line (the `action ... async` dispatch line records the attempt).
 - `port radio send group <g>` followed by one typed-payload token - one radio send
   crossing the port. The payload token is one of: `number <f32Bits>`,
   `double <f32Bits>`, `string "<bytes>"`, `value "<name>" number <f32Bits>`,
