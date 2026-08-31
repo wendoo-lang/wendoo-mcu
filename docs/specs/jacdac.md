@@ -343,9 +343,17 @@ right form (event tile vs register read) for the job.
 - **Hardware backing.** Jacdac data is single-wire serial on edge-connector pin **P12** at
   1 Mbaud (the pin pxt-jacdac binds; CODAL provides the substrate as
   `codal::ZSingleWireSerial`, the nRF52 UARTE + DMA implementation). The protocol stack is the
-  vendored **jacdac-c** library over that PHY, backed by CODAL's heap -- never the VM arena.
-  IRQ and CODAL-event handlers enqueue only; the firmware main loop drains
-  (`jacdac.pollRx()`-shape, the `MicroBitRadioPort` pattern) before `hostLoop.tick()`.
+  vendored **jacdac-c** library over that PHY. Its memory is STATIC bounded structures --
+  frame queues, tables, and rings sized by protocol constants, the radio-ring pattern -- never
+  the VM arena and never runtime heap allocation: the firmware's RAM is almost fully
+  statically placed, so a heap-backed stack has nothing to draw from. IRQ and CODAL-event
+  handlers enqueue only; the firmware main loop drains (`jacdac.pollRx()`-shape, the
+  `MicroBitRadioPort` pattern) before `hostLoop.tick()`.
+- **Memory budget is stated, never absorbed.** The on-flash user-program region starts at the
+  page-aligned firmware end (only the region end is fixed), so jacdac's flash cost trades
+  page-for-page against user program capacity -- there is no wall, only that trade. A build
+  that adds jacdac states its region cost; RAM the stack needs beyond the firmware's slack is
+  taken from the VM arena size explicitly, with the arena delta stated in the same change.
 - **Port.** A board-agnostic `JacdacPort` in `cpp/codal/device-port.h` (a `DevicePorts` member),
   shaped by the bus-core surface above: device table, register cache, event ring, outbox. The
   concrete `MicroBitJacdacPort` binds jacdac-c. Ring depths and cache bounds are tied to
