@@ -173,6 +173,7 @@ CoreFuncDispatch coreFuncDispatch(CoreFuncId id) {
   case CoreFuncId::SensorCurrentPage:
   case CoreFuncId::SensorPreviousPage:
   case CoreFuncId::SensorOtherwise:
+  case CoreFuncId::SensorRuleTrigger:
   case CoreFuncId::ActuatorSwitchPage:
   case CoreFuncId::ActuatorRestartPage:
   case CoreFuncId::ActuatorYield:

@@ -1,0 +1,66 @@
+mctrace 1
+profile 1
+precision f32
+tick 1 time 44898000 dt 00000000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 0
+action 9 site 2 args 0 async
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick 2 time 45098000 dt 44898000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 1
+port display scroll "hello"
+action 402 site 1 args 3 nil nil nil async
+action 9 site 2 args 0 async
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick 3 time 454e4000 dt 44898000
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick 4 time 45898000 dt 44898000
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick 5 time 45abe000 dt 44898000
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick 6 time 45ce4000 dt 44898000
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick 7 time 45f0a000 dt 44898000
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick 8 time 46098000 dt 44898000
+port display set-pixel 3f800000 00000000 437f0000
+action 401 site 3 args 3 number 3f800000 number 00000000 nil result void
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 0
+action 8 site 4 args 0 result bool 0
+tick 9 time 461ab000 dt 44898000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 0
+action 9 site 2 args 0 async
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick a time 462be000 dt 44898000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 0
+action 9 site 2 args 0 async
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick b time 463d1000 dt 44898000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 0
+action 9 site 2 args 0 async
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void
+tick c time 464e4000 dt 44898000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 0
+action 9 site 2 args 0 async
+action 8 site 4 args 0 result bool 1
+port display set-pixel 40000000 00000000 437f0000
+action 401 site 5 args 3 number 40000000 number 00000000 nil result void

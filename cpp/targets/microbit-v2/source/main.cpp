@@ -118,10 +118,10 @@ int main()
                   static_cast<uint16_t>(LoadError::UnsupportedDeviceProfile));
     }
 
-    // The firmware action table is the core sensor/actuator surface (ids 0-7)
+    // The firmware action table is the core sensor/actuator surface (ids 0-9)
     // followed by the microbit-v2 host actions (ids 1024+). The core bodies
-    // reach the brain, RNG, and heap through coreEnv, filled once the scheduler
-    // and brain exist.
+    // reach the brain, RNG, heap, and scheduler through coreEnv, filled once the
+    // scheduler and brain exist.
     CoreHostActionEnv coreEnv;
     VmRng rng;
     // The async scroll bodies (the display-text tile action and the scrollText
@@ -198,6 +198,7 @@ int main()
     coreEnv.heap = &heap;
     coreEnv.roots = &scheduler;
     coreEnv.program = &image;
+    coreEnv.ruleLiveness = &scheduler;
     scrollEnv.heap = &heap;
     drawEnv.heap = &heap;
     playSoundEnv.heap = &heap;

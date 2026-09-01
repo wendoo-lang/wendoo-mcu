@@ -122,10 +122,15 @@ enum class Op : uint8_t {
   // Closure operations
   MAKE_CLOSURE = 170,
   LOAD_CAPTURE = 171,
+
+  // Chain-gate WHEN boundaries: the truthiness and presence gates of a rule
+  // whose trigger mode chains onto the rule above it at its own nesting level.
+  WHEN_END_CHAIN = 172,
+  WHEN_END_PRESENT_CHAIN = 173,
 };
 
 /** Number of declared {@link Op} members, including the reserved opcodes. */
-inline constexpr uint32_t kOpCount = 67;
+inline constexpr uint32_t kOpCount = 69;
 
 /**
  * Var-int encoding of a single instruction operand: `UVar` is an unsigned
@@ -167,9 +172,10 @@ inline constexpr OperandSpec kUVarOpt{OperandEncoding::UVar, true};
  * Per-opcode operand layout for binary instruction serialization. Mirrors
  * OPERAND_SCHEMA in
  * external/wendoo-lang/packages/core/src/runtime/bytecode.ts, one row per
- * declared {@link Op} member in declaration order. `SVar` marks the six
+ * declared {@link Op} member in declaration order. `SVar` marks the eight
  * signed rel-offset opcodes (`JMP`, `JMP_IF_FALSE`, `JMP_IF_TRUE`,
- * `WHEN_END`, `WHEN_END_PRESENT`, `TRY`); the optional trailing `b` marks the four
+ * `WHEN_END`, `WHEN_END_PRESENT`, `WHEN_END_CHAIN`, `WHEN_END_PRESENT_CHAIN`,
+ * `TRY`); the optional trailing `b` marks the four
  * typeId-carrying constructors (`LIST_NEW`, `MAP_NEW`, `STRUCT_NEW`,
  * `STRUCT_COPY_EXCEPT`); every other operand is `UVar`. `STRUCT_NEW`'s `a`
  * operand is reserved and must be 0.
@@ -242,6 +248,8 @@ inline constexpr OpOperandSchema kOperandSchema[] = {
     {Op::CALL_INDIRECT_ARGS, 1, {detail::kUVar}},
     {Op::MAKE_CLOSURE, 2, {detail::kUVar, detail::kUVar}},
     {Op::LOAD_CAPTURE, 1, {detail::kUVar}},
+    {Op::WHEN_END_CHAIN, 1, {detail::kSVar}},
+    {Op::WHEN_END_PRESENT_CHAIN, 1, {detail::kSVar}},
 };
 
 /**

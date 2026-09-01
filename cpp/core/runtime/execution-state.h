@@ -192,7 +192,32 @@ struct ExecutionState {
    * on the shared context's `time` for each of the child's slices.
    */
   mc_number_t dispatchTime = 0;
+
+  /**
+   * Program counter of the async dispatch this fiber last parked on for want of
+   * a free async handle, paired with {@link handleBackpressureRounds}. Mirrors
+   * `Fiber.handleBackpressurePc` in
+   * external/wendoo-lang/packages/core/src/runtime/vm-types.ts.
+   */
+  uint32_t handleBackpressurePc = 0;
+
+  /**
+   * Consecutive rounds this fiber has re-executed the dispatch at
+   * {@link handleBackpressurePc} without a free handle. Reset to zero by a
+   * dispatch that allocates, and by a backpressure at a different pc. Reaching
+   * {@link kHandleBackpressureFaultRounds} faults the fiber `StackOverflow`.
+   */
+  uint32_t handleBackpressureRounds = 0;
 };
+
+/**
+ * Consecutive rounds one fiber may re-execute the same async dispatch without a
+ * free async handle before the runtime faults it `ErrorCode::StackOverflow`.
+ * A dispatch that allocates clears the count. Mirrors
+ * `HANDLE_BACKPRESSURE_FAULT_ROUNDS` in
+ * external/wendoo-lang/packages/core/src/runtime/vm-types.ts.
+ */
+inline constexpr uint32_t kHandleBackpressureFaultRounds = 8192;
 
 static_assert(std::is_trivially_copyable_v<Frame>, "execution state stays trivially copyable");
 static_assert(std::is_trivially_copyable_v<Handler>, "execution state stays trivially copyable");

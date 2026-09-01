@@ -58,6 +58,16 @@ struct HostActionBinding {
 
   /** Asynchronous body, or null when the action is synchronous. */
   HostActionExecAsync execAsync = nullptr;
+
+  /**
+   * When true, `HOST_ACTION_CALL_ASYNC` allocates this action's handles outside
+   * the runtime's `maxHandles` accounting: the dispatch skips the capacity
+   * check and the handle is not counted while live. Set it only on an action
+   * whose live pending handles the runtime bounds by construction. False means
+   * the ordinary capped allocation. Mirrors `HostActionBinding.uncappedHandles`
+   * in external/wendoo-lang/packages/core/src/runtime/context.ts.
+   */
+  bool uncappedHandles = false;
 };
 
 /**

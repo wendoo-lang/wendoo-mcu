@@ -7,6 +7,11 @@
  * whose same-think async breadth exceeds that cap spills its async dispatches
  * across thinks in bounded waves whose first wave equals the profile cap; a brain
  * whose breadth is within the cap dispatches everything in a single think.
+ *
+ * The fixtures here are independent sibling rules over hosts that settle, so
+ * every backpressured dispatch clears within a few rounds. A dispatch starved
+ * for `HANDLE_BACKPRESSURE_FAULT_ROUNDS` consecutive rounds instead faults
+ * `StackOverflow`; that path is pinned in the core VM specs.
  */
 
 import assert from "node:assert/strict";
@@ -120,7 +125,11 @@ test("a brain whose async breadth exceeds the profile handle cap wave-spreads ac
   const cap = getWodalDeviceProfile(WodalDeviceProfileId.MICROBIT_V2).maxHandles;
   const { waves, faulted } = runWaves(cap + 2);
 
-  assert.equal(faulted, false, "handle exhaustion parks and retries, it never faults");
+  assert.equal(
+    faulted,
+    false,
+    "independent sibling breadth over settling hosts parks and retries within a few rounds, never long enough to fault"
+  );
   assert.equal(
     waves.reduce((sum, count) => sum + count, 0),
     cap + 2,

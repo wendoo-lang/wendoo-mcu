@@ -42,11 +42,12 @@ Status BrainRuntime::startup() {
       systemSlotCount = system.storeSlot + 1;
     }
   }
-  // One firing record per function, indexed by funcId so every rule funcId the
-  // VM resolves is in range. Allocated once for the brain's lifetime.
-  const uint32_t ruleFiringCount = static_cast<uint32_t>(program_.functions.size());
+  // One entry per function in each per-rule table (firing record, watcher slot,
+  // abandonment mark), indexed by funcId so every rule funcId the VM resolves is
+  // in range. Allocated once for the brain's lifetime.
+  const uint32_t ruleRecordCount = static_cast<uint32_t>(program_.functions.size());
   if (!surface_.context->bindSlots(scheduler_.arena(), variableCount, callSiteCount,
-                                   callSiteSlotStride, systemSlotCount, ruleFiringCount,
+                                   callSiteSlotStride, systemSlotCount, ruleRecordCount,
                                    program_.variableInitValues, program_.constValues)) {
     return Status::fail(ErrorCode::HostError);
   }

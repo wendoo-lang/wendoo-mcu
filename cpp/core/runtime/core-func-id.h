@@ -127,9 +127,10 @@ enum class CoreFuncId : uint32_t {
   ConvEnumToString = 104,
   ConvEnumToNumber = 105,
   SensorOtherwise = 106,
+  SensorRuleTrigger = 107,
 };
 
 /** Number of declared {@link CoreFuncId} members; ids are dense from 0. */
-inline constexpr uint32_t kCoreFuncIdCount = 107;
+inline constexpr uint32_t kCoreFuncIdCount = 108;
 
 } // namespace wendoo

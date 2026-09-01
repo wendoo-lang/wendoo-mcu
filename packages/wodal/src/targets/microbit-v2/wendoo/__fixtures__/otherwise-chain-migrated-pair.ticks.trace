@@ -1,0 +1,28 @@
+mctrace 1
+profile 1
+precision f32
+tick 1 time 41800000 dt 00000000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 0
+action 8 site 2 args 0 result bool 1
+port display set-pixel 3f800000 00000000 437f0000
+action 401 site 3 args 3 number 3f800000 number 00000000 nil result void
+tick 2 time 42000000 dt 41800000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 1
+port display set-pixel 00000000 00000000 437f0000
+action 401 site 1 args 3 number 00000000 number 00000000 nil result void
+action 8 site 2 args 0 result bool 0
+tick 3 time 42400000 dt 41800000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 1
+port display set-pixel 00000000 00000000 437f0000
+action 401 site 1 args 3 number 00000000 number 00000000 nil result void
+action 8 site 2 args 0 result bool 0
+tick 4 time 42800000 dt 41800000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 0
+action 8 site 2 args 0 result bool 1
+port display set-pixel 3f800000 00000000 437f0000
+action 401 site 3 args 3 number 3f800000 number 00000000 nil result void
+tick 5 time 42a00000 dt 41800000
+action 400 site 0 args 6 nil nil nil nil nil number 3f800000 result bool 0
+action 8 site 2 args 0 result bool 1
+port display set-pixel 3f800000 00000000 437f0000
+action 401 site 3 args 3 number 3f800000 number 00000000 nil result void

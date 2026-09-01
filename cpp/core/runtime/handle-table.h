@@ -51,6 +51,12 @@ struct Handle {
   HandleWaiter* waitersHead;
   /** Next handle in the settled (completed) drain queue. */
   Handle* nextCompleted;
+  /**
+   * Whether this handle counts against the table's `maxHandles` cap. True for
+   * a handle backing a device or host operation; false for a handle whose live
+   * count the runtime already bounds by construction.
+   */
+  bool capped;
 };
 
 /**
@@ -77,24 +83,29 @@ public:
       : handles_(arena), waiters_(arena), maxHandles_(maxHandles) {}
 
   /**
-   * True when a {@link createPending} would clear the live-handle guard right
-   * now: the live-handle count is below {@link maxHandles}. Non-mutating; an
-   * async dispatch checks it to decide whether to allocate or to park and retry
-   * next round. A create can still fail on arena exhaustion after this returns
-   * true.
+   * True when a capped {@link createPending} would clear the live-handle guard
+   * right now: the live capped-handle count is below {@link maxHandles}.
+   * Uncapped handles are excluded from the count and always allocate.
+   * Non-mutating; an async dispatch checks it to decide whether to allocate or
+   * to park and retry next round. A create can still fail on arena exhaustion
+   * after this returns true.
    */
-  bool hasCapacity() const { return handles_.liveCount() < maxHandles_; }
+  bool hasCapacity() const { return cappedCount_ < maxHandles_; }
 
   /** Count of live handles (any state) currently carved from the pool. */
   uint32_t size() const { return handles_.liveCount(); }
 
+  /** Count of live handles that count against {@link maxHandles}. */
+  uint32_t cappedSize() const { return cappedCount_; }
+
   /**
    * Carves a fresh `Pending` handle and returns its id, or {@link kNoHandleId}
-   * when the live-handle count is already {@link maxHandles} or the arena cannot
-   * back a new slot.
+   * when a capped create would cross {@link maxHandles} or the arena cannot
+   * back a new slot. Pass `capped` false to keep the handle out of the
+   * {@link maxHandles} accounting.
    */
-  uint32_t createPending() {
-    if (handles_.liveCount() >= maxHandles_) {
+  uint32_t createPending(bool capped = true) {
+    if (capped && cappedCount_ >= maxHandles_) {
       return kNoHandleId;
     }
     Handle* h = handles_.alloc();
@@ -107,6 +118,10 @@ public:
     h->error = ErrorCode::HostError;
     h->waitersHead = nullptr;
     h->nextCompleted = nullptr;
+    h->capped = capped;
+    if (capped) {
+      cappedCount_++;
+    }
     return h->id;
   }
 
@@ -232,6 +247,9 @@ public:
       waiters_.free(cur);
       cur = next;
     }
+    if (h->capped) {
+      cappedCount_--;
+    }
     handles_.free(h);
   }
 
@@ -271,6 +289,7 @@ private:
   Pool<Handle> handles_;
   Pool<HandleWaiter> waiters_;
   uint32_t maxHandles_;
+  uint32_t cappedCount_ = 0;
   uint32_t nextId_ = 1;
   Handle* completedHead_ = nullptr;
   Handle* completedTail_ = nullptr;

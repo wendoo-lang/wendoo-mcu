@@ -46,6 +46,7 @@ TEST_CASE("core host-action ids are wire-stable") {
   CHECK(CoreHostActions::CurrentPage.actionId == 6);
   CHECK(CoreHostActions::PreviousPage.actionId == 7);
   CHECK(CoreHostActions::Otherwise.actionId == 8);
+  CHECK(CoreHostActions::RuleTrigger.actionId == 9);
 }
 
 TEST_CASE("core host-action fnIds reference the declared core funcIds") {
@@ -59,10 +60,12 @@ TEST_CASE("core host-action fnIds reference the declared core funcIds") {
   CHECK(CoreHostActions::CurrentPage.fnId == 55);
   CHECK(CoreHostActions::PreviousPage.fnId == 56);
   CHECK(CoreHostActions::Otherwise.fnId == 106);
+  CHECK(CoreHostActions::RuleTrigger.fnId == static_cast<uint32_t>(CoreFuncId::SensorRuleTrigger));
+  CHECK(CoreHostActions::RuleTrigger.fnId == 107);
 }
 
 TEST_CASE("record table covers every action densely in action-id order") {
-  REQUIRE(std::size(kCoreHostActions) == 9);
+  REQUIRE(std::size(kCoreHostActions) == 10);
   for (uint32_t i = 0; i < std::size(kCoreHostActions); i++) {
     CHECK(kCoreHostActions[i].actionId == i);
     CHECK(kCoreHostActions[i].actionId < TARGET_ACTION_ID_BASE);

@@ -16,6 +16,7 @@ import {
   mkOperatorTileId,
   mkParameterTileId,
   mkSensorTileId,
+  RuleTriggerMode,
 } from "@wendoo/core/brain";
 import { __test__appendTile } from "@wendoo/core/brain/__test__";
 import {
@@ -24,7 +25,7 @@ import {
   projectRuleSentence,
   segmentDisplayText,
   sentenceText,
-  whenTriggerWord,
+  triggerModeWord,
 } from "@wendoo/core/brain/language-service";
 import { BrainDef, type BrainPageDef, type BrainRuleDef } from "@wendoo/core/brain/model";
 import { BrainTileLiteralDef } from "@wendoo/core/brain/tiles";
@@ -98,10 +99,12 @@ function reading(whenTiles: readonly IBrainTileDef[], doTiles: readonly IBrainTi
   return sentenceText(projectRuleSentence(rule(whenTiles, doTiles), localizer), localizer);
 }
 
-/** One rule of a page fixture: the tiles of each side, plus any child rules. */
+/** One rule of a page fixture: the tiles of each side, its mode, plus any child rules. */
 interface RuleSpec {
   readonly when?: readonly IBrainTileDef[];
   readonly do?: readonly IBrainTileDef[];
+  /** The rule's trigger mode; omitted leaves it in the `when` mode. */
+  readonly trigger?: RuleTriggerMode;
   readonly children?: readonly RuleSpec[];
 }
 
@@ -116,6 +119,9 @@ function appendRuleSpecs(page: BrainPageDef, specs: readonly RuleSpec[], depth: 
     }
     for (let i = 0; i < depth; i++) {
       assert.ok(ruleDef.indent(), `rule indents to depth ${depth}`);
+    }
+    if (spec.trigger !== undefined) {
+      ruleDef.setTrigger(spec.trigger);
     }
     appendRuleSpecs(page, spec.children ?? [], depth + 1);
   }
@@ -143,7 +149,9 @@ function composing(
 ): string {
   const settled = projectRuleSentence(rule(whenTiles, doTiles), localizer).toArray();
   const composed = composeSentenceReading(settled);
-  const segments = pivoted ? [...composed, ...composePivotReading(composed, whenTriggerWord(localizer))] : composed;
+  const segments = pivoted
+    ? [...composed, ...composePivotReading(composed, triggerModeWord(RuleTriggerMode.When, localizer))]
+    : composed;
   return segments.map((segment) => segmentDisplayText(segment, localizer)).join("");
 }
 
@@ -390,6 +398,66 @@ describe("microbit-v2 paragraph readings", () => {
         },
       ]),
       "When button A pressed, radio send 1. When radio receive number, display text received value."
+    );
+  });
+});
+
+// -- trigger modes ------------------------------------------------------------
+
+describe("microbit-v2 trigger mode readings", () => {
+  const buttonA = () => sensor(MicroBitV2HostActions.ButtonA.key);
+  const gesture = () => sensor(MicroBitV2HostActions.Gesture.key);
+  const displayText = () => actuator(MicroBitV2HostActions.DisplayScroll.key);
+  const playSound = () => actuator(MicroBitV2HostActions.PlaySound.key);
+  const clear = () => actuator(MicroBitV2HostActions.DisplayClear.key);
+
+  test("an otherwise rule reads its connective, alone and before a condition", () => {
+    assert.equal(
+      paragraph([
+        { when: [buttonA()], do: [displayText(), text("hi")] },
+        { do: [clear()], trigger: RuleTriggerMode.Otherwise },
+      ]),
+      'When button A pressed, display text "hi". Otherwise, clear display.'
+    );
+    assert.equal(
+      paragraph([
+        { when: [buttonA()], do: [displayText(), text("hi")] },
+        { when: [gesture()], do: [clear()], trigger: RuleTriggerMode.Otherwise },
+      ]),
+      'When button A pressed, display text "hi". Otherwise, when gesture shake, clear display.'
+    );
+  });
+
+  test("a then rule reads its connective, alone and before a condition", () => {
+    assert.equal(
+      paragraph([
+        { when: [buttonA()], do: [displayText(), text("hi")] },
+        { do: [playSound(), literal("giggle")], trigger: RuleTriggerMode.Then },
+      ]),
+      'When button A pressed, display text "hi". Then, play sound giggle.'
+    );
+    assert.equal(
+      paragraph([
+        { when: [buttonA()], do: [displayText(), text("hi")] },
+        { when: [gesture()], do: [displayText(), text("bye")], trigger: RuleTriggerMode.Then },
+      ]),
+      'When button A pressed, display text "hi". Then, when gesture shake, display text "bye".'
+    );
+  });
+
+  test("a mode child continues its parent's sentence through its own connective", () => {
+    assert.equal(
+      paragraph([
+        {
+          when: [buttonA()],
+          do: [displayText(), text("hi")],
+          children: [
+            { do: [playSound(), literal("giggle")], trigger: RuleTriggerMode.Then },
+            { do: [clear()], trigger: RuleTriggerMode.Otherwise },
+          ],
+        },
+      ]),
+      'When button A pressed, display text "hi", then play sound giggle, otherwise clear display.'
     );
   });
 });

@@ -220,6 +220,15 @@ public:
     return *this;
   }
 
+  /**
+   * Records `childFuncId` as a child rule of `parentFuncId` in the program's
+   * rule-ancestor table. A rule with no entry is a root rule.
+   */
+  ProgramBuilder& ruleAncestor(uint32_t childFuncId, uint32_t parentFuncId) {
+    ruleAncestors_.push_back({childFuncId, parentFuncId});
+    return *this;
+  }
+
   /** Opens a new page identified by string-table entry `pageIdStringIdx`. */
   ProgramBuilder& beginPage(uint32_t pageIdStringIdx) {
     pages_.push_back(PageSpec{pageIdStringIdx, {}, {}});
@@ -244,9 +253,10 @@ public:
    * bytes, so the builder must outlive the image.
    */
   wendoo::ProgramImage build(std::vector<uint8_t>& storage) {
-    // Presence bits: ACTS is bit 0, RULF is bit 1.
+    // Presence bits: ACTS is bit 0, RULF is bit 1, RANC is bit 2.
     const uint8_t presence =
-        static_cast<uint8_t>((actions_.empty() ? 0 : 1) | (ruleFuncs_.empty() ? 0 : 2));
+        static_cast<uint8_t>((actions_.empty() ? 0 : 1) | (ruleFuncs_.empty() ? 0 : 2) |
+                             (ruleAncestors_.empty() ? 0 : 4));
     WireBuilder& w = wire_;
     w = programHeader(presence);
     w.varUint(static_cast<uint32_t>(strings_.size()))
@@ -279,6 +289,12 @@ public:
         w.varUint(funcId);
       }
     }
+    if (!ruleAncestors_.empty()) {
+      w.varUint(static_cast<uint32_t>(ruleAncestors_.size()));
+      for (const RuleAncestorSpec& edge : ruleAncestors_) {
+        w.varUint(edge.childFuncId).varUint(edge.parentFuncId);
+      }
+    }
     w.varUint(static_cast<uint32_t>(pages_.size()));
     for (size_t i = 0; i < pages_.size(); i++) {
       const PageSpec& page = pages_[i];
@@ -308,6 +324,12 @@ private:
     uint32_t actionId;
   };
 
+  /** One rule-ancestor edge: a child rule's funcId and its parent rule's funcId. */
+  struct RuleAncestorSpec {
+    uint32_t childFuncId;
+    uint32_t parentFuncId;
+  };
+
   struct PageSpec {
     uint32_t pageIdStringIdx;
     std::vector<uint32_t> roots;
@@ -332,6 +354,7 @@ private:
   std::vector<VariableSlot> variables_;
   std::vector<uint32_t> actions_;
   std::vector<uint32_t> ruleFuncs_;
+  std::vector<RuleAncestorSpec> ruleAncestors_;
   std::vector<PageSpec> pages_;
 };
 

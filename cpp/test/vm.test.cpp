@@ -69,6 +69,8 @@ bool isImplementedOp(Op op) {
   case Op::WHEN_START:
   case Op::WHEN_END:
   case Op::WHEN_END_PRESENT:
+  case Op::WHEN_END_CHAIN:
+  case Op::WHEN_END_PRESENT_CHAIN:
   case Op::DO_START:
   case Op::DO_END:
   case Op::LOAD_LOCAL:

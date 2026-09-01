@@ -1,6 +1,7 @@
 #include "core/runtime/fiber-scheduler.h"
 
 #include "core/runtime/execution-context.h"
+#include "core/runtime/rule-structure.h"
 
 namespace wendoo {
 
@@ -114,6 +115,12 @@ FiberRecord* FiberScheduler::allocFiber(uint32_t funcId, bool inlineId, Span<con
   record->exec = exec;
   // Only SPAWN_RULE child fibers carry a subtree root; all others leave it unset.
   record->rootRuleFuncId = kNoFuncId;
+  record->ruleFuncId = resolveDirectRuleFuncId(program_, funcId);
+  if (record->ruleFuncId != kNoFuncId && surface_.context != nullptr) {
+    // Entering a rule at its own entry point starts that rule's next firing, so
+    // any abandonment mark left by the previous one stops applying here.
+    surface_.context->clearRuleAbandoned(record->ruleFuncId);
+  }
   return record;
 }
 
@@ -147,6 +154,8 @@ uint32_t FiberScheduler::spawnAsyncActionChild(uint32_t entryFuncId, uint32_t ac
   }
   Frame& entry = record->exec.frames[0];
   entry.ruleFuncId = ruleFuncId;
+  // An async-action child belongs to the cluster of the rule that dispatched it.
+  record->ruleFuncId = ruleFuncId;
   entry.hasActionBinding = true;
   entry.actionBinding = ActionFrameBinding{actionId, callSiteId, true};
   record->exec.asyncResultHandleId = handleId;
@@ -186,6 +195,60 @@ bool FiberScheduler::hasLiveDescendantOfRoot(uint32_t rootRuleFuncId) {
     }
   });
   return found;
+}
+
+bool FiberScheduler::hasLiveRuleSubtree(uint32_t ruleFuncId) {
+  if (ruleFuncId == kNoFuncId) {
+    return false;
+  }
+  bool found = false;
+  records_.forEachLive([&](FiberRecord& record) {
+    if (found || (record.state != FiberState::Runnable && record.state != FiberState::Waiting)) {
+      return;
+    }
+    for (uint32_t cur = record.ruleFuncId; cur != kNoFuncId;
+         cur = parentRuleFuncId(program_, cur)) {
+      if (cur == ruleFuncId) {
+        found = true;
+        return;
+      }
+    }
+  });
+  return found;
+}
+
+void FiberScheduler::transitionTerminal(FiberRecord& record, FiberState terminal) {
+  record.state = terminal;
+  settleRuleWatchers(record, terminal);
+}
+
+void FiberScheduler::settleRuleWatchers(const FiberRecord& record, FiberState cause) {
+  if (surface_.context == nullptr) {
+    return;
+  }
+  ExecutionContext& ctx = *surface_.context;
+  const bool abandoning = cause != FiberState::Done;
+  // Cluster liveness is monotone from a rule to its ancestors: a live cluster's
+  // parent cluster is live too.
+  bool liveAbove = false;
+  for (uint32_t ruleFuncId = record.ruleFuncId; ruleFuncId != kNoFuncId;
+       ruleFuncId = parentRuleFuncId(program_, ruleFuncId)) {
+    if (abandoning) {
+      ctx.markRuleAbandoned(ruleFuncId);
+    }
+    const uint32_t handleId = ctx.ruleWatcher(ruleFuncId);
+    if (handleId == kNoHandleId || liveAbove) {
+      continue;
+    }
+    if (hasLiveRuleSubtree(ruleFuncId)) {
+      liveAbove = true;
+      continue;
+    }
+    const bool fired = !ctx.isRuleAbandoned(ruleFuncId) &&
+                       ctx.ruleFiringState(ruleFuncId) == RuleFiringState::DidFire;
+    ctx.clearRuleWatcher(ruleFuncId);
+    handles_.resolve(handleId, fired ? kTrueValue : kFalseValue);
+  }
 }
 
 void FiberScheduler::cancelChildRuleFibers() {
@@ -289,7 +352,7 @@ void FiberScheduler::cancelRecord(FiberRecord& record) {
     handles_.removeWaiter(record.exec.await.handleId, record.id);
     record.exec.awaiting = false;
   }
-  record.state = FiberState::Cancelled;
+  transitionTerminal(record, FiberState::Cancelled);
   // A cancelled async-action child cancels its pending result handle; the
   // awaiting parent resumes on the next drain with a Cancelled throw. Mirrors
   // cancelAsyncActionHandle in vm.ts.
@@ -377,7 +440,7 @@ void FiberScheduler::runFiberSlice(FiberRecord* record) {
     enqueue(record);
     break;
   case RunStatus::Done:
-    record->state = FiberState::Done;
+    transitionTerminal(*record, FiberState::Done);
     // An async-action child resolves its result handle on completion so the
     // awaiting parent resumes. Mirrors resolveAsyncActionHandle in vm.ts.
     if (record->exec.asyncResultHandleId != kNoHandleId) {
@@ -386,7 +449,7 @@ void FiberScheduler::runFiberSlice(FiberRecord* record) {
     }
     break;
   case RunStatus::Fault:
-    record->state = FiberState::Fault;
+    transitionTerminal(*record, FiberState::Fault);
     // A faulted async-action child rejects its result handle so the awaiting
     // parent throws at its AWAIT. Mirrors rejectAsyncActionHandle in vm.ts.
     if (record->exec.asyncResultHandleId != kNoHandleId) {

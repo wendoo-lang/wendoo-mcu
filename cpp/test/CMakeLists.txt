@@ -22,6 +22,7 @@ add_executable(wendoo-tests
   fiber-scheduler.test.cpp
   fiber-stress.test.cpp
   fixture-paths.test.cpp
+  handle-cap-accounting.test.cpp
   host-loop.test.cpp
   load-error.test.cpp
   managed-heap.test.cpp
@@ -38,6 +39,8 @@ add_executable(wendoo-tests
   radio-wire.test.cpp
   region-arena.test.cpp
   result.test.cpp
+  rule-chain-gate.test.cpp
+  rule-completion.test.cpp
   rule-firing-record.test.cpp
   span.test.cpp
   trace-parity.test.cpp

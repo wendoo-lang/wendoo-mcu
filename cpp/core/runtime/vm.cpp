@@ -8,6 +8,7 @@
 #include "core/runtime/core-host-functions.h"
 #include "core/runtime/handle-table.h"
 #include "core/runtime/managed-heap.h"
+#include "core/runtime/rule-structure.h"
 #include "core/runtime/rule-var-store.h"
 #include "core/runtime/stack-region.h"
 #include "core/runtime/type-registry.h"
@@ -322,22 +323,6 @@ const ActionFrameBinding* currentActionBinding(const ExecutionState& state) {
 }
 
 /**
- * The rule funcId for `funcId`, or {@link kNoFuncId} when `funcId` is not a
- * rule entry. Mirrors `getRuleFuncIdForFunc` in
- * external/wendoo-lang/packages/core/src/runtime/rule-services.ts.
- */
-uint32_t resolveDirectRuleFuncId(const ProgramImage& program, uint32_t funcId) {
-  if (program.hasRuleFuncIds) {
-    for (uint32_t i = 0; i < program.ruleFuncIds.size(); i++) {
-      if (program.ruleFuncIds[i] == funcId) {
-        return funcId;
-      }
-    }
-  }
-  return kNoFuncId;
-}
-
-/**
  * The rule funcId in scope for `frame`: its own rule binding when set, else its
  * function id resolved against the program's rule set. Mirrors
  * `resolveFrameRuleFuncId` in external/wendoo-lang/.../vm.ts.
@@ -563,6 +548,83 @@ Status dispatchGetWhenResult(const RuntimeSurface& surface, const ProgramImage& 
   out = getWhenResult(*surface.context, *surface.heap);
   surface.context->currentRuleFuncId = priorRuleFuncId;
   return Status::ok();
+}
+
+/**
+ * The firing record a chain gate writes: `DidFire` when the rule fired, and on a
+ * rule that did not fire the record of its subject -- the rule directly above it
+ * at its own nesting level. A rule with no subject records its own outcome.
+ * Mirrors `chainedFiringState` in external/wendoo-lang/.../vm.ts.
+ */
+RuleFiringState chainedFiringState(const ExecutionContext& ctx, const ProgramImage& program,
+                                   uint32_t ruleFuncId, bool fired) {
+  if (fired) {
+    return RuleFiringState::DidFire;
+  }
+  const uint32_t subject = precedingSiblingRuleFuncId(program, ruleFuncId);
+  if (subject == kNoFuncId) {
+    return RuleFiringState::DidNotFire;
+  }
+  return ctx.ruleFiringState(subject);
+}
+
+/**
+ * The shared body of the four WHEN boundary gates. Pops the WHEN result, copies
+ * it into the rule's reserved `__whenResult` variable (every rule captures,
+ * whatever the gate decides), computes the fired outcome, writes the firing
+ * record, and advances the pc by one on a fire or by the signed `a` offset on a
+ * skip, which lands past the DO section and any nested boundaries. Returns false
+ * with an empty operand stack, which the caller faults `StackUnderflow`.
+ * Mirrors `execWhenGate` in external/wendoo-lang/.../vm.ts.
+ *
+ * @param presenceGated - Gate on the WHEN result being present (non-nil), so a
+ *   present falsy value fires. Otherwise the gate is on truthiness.
+ * @param chained - Write the chain-aware firing record of a rule that chains
+ *   onto its subject. Otherwise the record is the rule's own outcome.
+ */
+bool execWhenGate(ExecutionState& state, const ProgramImage& program, const RuntimeSurface& surface,
+                  Frame& frame, const Instr& ins, bool presenceGated, bool chained) {
+  if (state.stackDepth == 0) {
+    return false;
+  }
+  // Peek (not pop) so the value stays rooted on the operand stack across the
+  // rule-var allocation. Best-effort: a missing heap or allocation failure drops
+  // the capture without disturbing the gate.
+  const Value value = state.stack[state.stackDepth - 1];
+  const uint32_t ruleFuncId = resolveFrameRuleFuncId(program, frame);
+  ruleVarSet(surface.context, surface.heap, surface.roots, ruleFuncId,
+             Value::number(kWhenResultRuleVarKey), value);
+  state.stackDepth--;
+  const bool fired = presenceGated ? !value.isNil() : isTruthy(value, program, surface.heap);
+  if (surface.context != nullptr) {
+    const RuleFiringState record =
+        chained ? chainedFiringState(*surface.context, program, ruleFuncId, fired)
+        : fired ? RuleFiringState::DidFire
+                : RuleFiringState::DidNotFire;
+    surface.context->setRuleFiringState(ruleFuncId, record);
+  }
+  frame.pc = fired ? frame.pc + 1 : addRel(frame.pc, ins.a);
+  return true;
+}
+
+/**
+ * Records that the async dispatch at `pc` found no free async handle. Returns
+ * true once that same dispatch has backpressured
+ * {@link kHandleBackpressureFaultRounds} consecutive rounds, at which point the
+ * caller faults the fiber `StackOverflow`. Mirrors `backpressureOnHandles` in
+ * external/wendoo-lang/packages/core/src/runtime/vm.ts.
+ */
+bool noteHandleBackpressure(ExecutionState& state, uint32_t pc) {
+  state.handleBackpressureRounds =
+      state.handleBackpressurePc == pc ? state.handleBackpressureRounds + 1 : 1;
+  state.handleBackpressurePc = pc;
+  return state.handleBackpressureRounds >= kHandleBackpressureFaultRounds;
+}
+
+/** Clears the backpressure run recorded by {@link noteHandleBackpressure}. */
+void clearHandleBackpressure(ExecutionState& state) {
+  state.handleBackpressurePc = 0;
+  state.handleBackpressureRounds = 0;
 }
 
 } // namespace
@@ -1165,8 +1227,12 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
       // the retry is an exact re-execution once an in-flight async settles a
       // slot.
       if (!surface.handles->hasCapacity()) {
+        if (noteHandleBackpressure(state, frame.pc)) {
+          return fault(ErrorCode::StackOverflow);
+        }
         return RunResult::yielded();
       }
+      clearHandleBackpressure(state);
       const uint32_t handleId = surface.handles->createPending();
       if (handleId == kNoHandleId) {
         return fault(ErrorCode::StackOverflow);
@@ -1217,14 +1283,20 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
       // this same dispatch next round. The check precedes every side effect (no
       // args popped, no call site bound, no handle allocated, no action started,
       // pc unchanged), so the retry is an exact re-execution once an in-flight
-      // async settles a slot.
-      if (!surface.handles->hasCapacity()) {
+      // async settles a slot. An action declaring `uncappedHandles` skips the
+      // check and allocates outside the cap.
+      const bool capped = !action->uncappedHandles;
+      if (capped && !surface.handles->hasCapacity()) {
+        if (noteHandleBackpressure(state, frame.pc)) {
+          return fault(ErrorCode::StackOverflow);
+        }
         return RunResult::yielded();
       }
+      clearHandleBackpressure(state);
       ExecutionContext& ctx = *surface.context;
       ctx.currentCallSiteId = ins.c;
       ctx.currentRuleFuncId = resolveFrameRuleFuncId(program, frame);
-      const uint32_t handleId = surface.handles->createPending();
+      const uint32_t handleId = surface.handles->createPending(capped);
       if (handleId == kNoHandleId) {
         return fault(ErrorCode::StackOverflow);
       }
@@ -1316,46 +1388,37 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
     case Op::WHEN_END: {
       // The WHEN section leaves exactly one value: truthy falls through into
       // the DO section, falsy jumps past it by the signed `a` offset.
-      if (state.stackDepth == 0) {
+      if (!execWhenGate(state, program, surface, frame, ins, false, false)) {
         return fault(ErrorCode::StackUnderflow);
       }
-      // Capture the WHEN result into the rule's reserved __whenResult variable.
-      // Peek (not pop) so the value stays rooted on the operand stack across the
-      // rule-var allocation. Best-effort: a missing heap or allocation failure
-      // drops the capture without disturbing the truthiness gate. Every rule
-      // captures, regardless of the gate below.
-      const Value value = state.stack[state.stackDepth - 1];
-      const uint32_t ruleFuncId = resolveFrameRuleFuncId(program, frame);
-      ruleVarSet(surface.context, surface.heap, surface.roots, ruleFuncId,
-                 Value::number(kWhenResultRuleVarKey), value);
-      state.stackDepth--;
-      const bool fired = isTruthy(value, program, surface.heap);
-      if (surface.context != nullptr) {
-        surface.context->setRuleFiringState(ruleFuncId, fired ? RuleFiringState::DidFire
-                                                              : RuleFiringState::DidNotFire);
-      }
-      frame.pc = fired ? frame.pc + 1 : addRel(frame.pc, ins.a);
       break;
     }
 
     case Op::WHEN_END_PRESENT: {
       // Presence-gated WHEN: a present value (including a falsy 0 / "" / false)
       // falls through into the DO section; only nil (absent) jumps past it by
-      // the signed `a` offset. Captures __whenResult identically to WHEN_END.
-      if (state.stackDepth == 0) {
+      // the signed `a` offset.
+      if (!execWhenGate(state, program, surface, frame, ins, true, false)) {
         return fault(ErrorCode::StackUnderflow);
       }
-      const Value value = state.stack[state.stackDepth - 1];
-      const uint32_t ruleFuncId = resolveFrameRuleFuncId(program, frame);
-      ruleVarSet(surface.context, surface.heap, surface.roots, ruleFuncId,
-                 Value::number(kWhenResultRuleVarKey), value);
-      state.stackDepth--;
-      const bool fired = !value.isNil();
-      if (surface.context != nullptr) {
-        surface.context->setRuleFiringState(ruleFuncId, fired ? RuleFiringState::DidFire
-                                                              : RuleFiringState::DidNotFire);
+      break;
+    }
+
+    case Op::WHEN_END_CHAIN: {
+      // The truthiness gate of a chaining rule: same condition, same skip, and
+      // the chain-aware firing record.
+      if (!execWhenGate(state, program, surface, frame, ins, false, true)) {
+        return fault(ErrorCode::StackUnderflow);
       }
-      frame.pc = fired ? frame.pc + 1 : addRel(frame.pc, ins.a);
+      break;
+    }
+
+    case Op::WHEN_END_PRESENT_CHAIN: {
+      // The presence gate of a chaining rule: same condition, same skip, and the
+      // chain-aware firing record.
+      if (!execWhenGate(state, program, surface, frame, ins, true, true)) {
+        return fault(ErrorCode::StackUnderflow);
+      }
       break;
     }
 
@@ -1846,8 +1909,12 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
       // so the retry is an exact re-execution once an in-flight async settles a
       // slot.
       if (!surface.handles->hasCapacity()) {
+        if (noteHandleBackpressure(state, frame.pc)) {
+          return fault(ErrorCode::StackOverflow);
+        }
         return RunResult::yielded();
       }
+      clearHandleBackpressure(state);
       const BytecodeAction& action = program.actions[actionSlot];
       // Resolve the inherited rule from the caller before spawning; the spawned
       // child takes the args off the top of the operand stack as its locals.

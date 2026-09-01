@@ -13,6 +13,7 @@
 #include "core/runtime/program.h"
 #include "core/runtime/region-arena.h"
 #include "core/runtime/result.h"
+#include "core/runtime/rule-subtree-liveness.h"
 #include "core/runtime/stack-region.h"
 #include "core/runtime/value.h"
 #include "core/runtime/vm.h"
@@ -70,6 +71,14 @@ struct FiberRecord {
    * `Fiber.rootRuleFuncId` in vm.ts.
    */
   uint32_t rootRuleFuncId;
+  /**
+   * Func id of the rule this fiber runs: its entry function when that function
+   * is a rule entry, the dispatching rule for an async-action child fiber, and
+   * {@link kNoFuncId} for a fiber that belongs to no rule. Rule-cluster
+   * membership walks up from here through the program's rule-ancestor chain.
+   * Mirrors `Fiber.ruleFuncId` in vm.ts.
+   */
+  uint32_t ruleFuncId;
 };
 
 /**
@@ -93,7 +102,10 @@ struct FiberRecord {
  * fibers' operand stacks and locals plus the bound execution context's brain
  * variables and per-callsite state.
  */
-class FiberScheduler : public GcRoots, public AsyncActionSpawner, public ChildRuleSpawner {
+class FiberScheduler : public GcRoots,
+                       public AsyncActionSpawner,
+                       public ChildRuleSpawner,
+                       public RuleSubtreeLiveness {
 public:
   /**
    * A scheduler executing `program` against `surface` under `caps`. The caps
@@ -177,6 +189,15 @@ public:
    */
   bool hasLiveDescendantOfRoot(uint32_t rootRuleFuncId);
 
+  /**
+   * Returns true when any live (runnable or waiting) fiber belongs to
+   * `ruleFuncId`'s cluster -- its own fiber, or one whose rule reaches
+   * `ruleFuncId` through the program's rule-ancestor chain. Child-rule fibers
+   * held in the current tick's spawn drain are runnable and count. Implements
+   * {@link RuleSubtreeLiveness}.
+   */
+  bool hasLiveRuleSubtree(uint32_t ruleFuncId) override;
+
   /** Cancels the fiber holding `fiberId`; a no-op when it is not live. */
   void cancel(uint32_t fiberId);
 
@@ -244,6 +265,18 @@ private:
   FiberRecord* allocFiber(uint32_t funcId, bool inlineId, Span<const Value> args, ErrorCode& err);
 
   FiberRecord* findFiber(uint32_t fiberId);
+  // Moves `record` to a terminal state (Done, Fault, or Cancelled) and runs the
+  // settle walk for it. Every terminal transition goes through here. Mirrors
+  // transitionState in vm.ts.
+  void transitionTerminal(FiberRecord& record, FiberState terminal);
+  // The settle walk: takes the finishing fiber's rule and walks it and its
+  // ancestors. A fiber that faulted or was cancelled marks every rule on that
+  // walk -- the whole set of clusters it belonged to -- as an abandoned firing.
+  // Then, for each rule whose cluster has emptied, resolves the pending trigger
+  // handle in that rule's watcher slot and clears the slot: true on a DidFire
+  // record with no abandonment mark, false otherwise. Call only once
+  // `record.state` is terminal. Mirrors settleRuleWatchers in vm.ts.
+  void settleRuleWatchers(const FiberRecord& record, FiberState cause);
   // Cancels a live (runnable or waiting) record: detaches it from any awaited
   // handle, cancels a pending async-action result handle, marks it Cancelled,
   // and removes it from the run queue. Shared by cancel() and the cascade.

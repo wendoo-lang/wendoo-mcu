@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "core/platform/span.h"
+#include "core/runtime/handle-table.h"
 #include "core/runtime/mc-number.h"
 #include "core/runtime/program.h"
 #include "core/runtime/region-arena.h"
@@ -134,20 +135,42 @@ struct ExecutionContext {
   Span<RuleFiringState> ruleFiring{};
 
   /**
+   * Per-rule watcher slots indexed by rule funcId: the pending rule-trigger
+   * handle of the rule watching this one for completion, or
+   * {@link kNoHandleId} when none does. A rule holds at most one. Sized and
+   * emptied by {@link bindSlots}; empty until then, in which case every read
+   * returns {@link kNoHandleId} and every write is dropped. Runtime-internal:
+   * the slots are not serialized and not traced.
+   */
+  Span<uint32_t> ruleWatchers{};
+
+  /**
+   * Per-rule abandonment marks indexed by rule funcId: true once the rule's
+   * current firing has lost a fiber to a fault or a cancellation anywhere in
+   * its cluster. Cleared when the rule spawns its next firing. Sized and
+   * cleared by {@link bindSlots}; empty until then, in which case every read
+   * returns false and every write is dropped. Runtime-internal: the marks are
+   * not serialized and not traced.
+   */
+  Span<bool> ruleAbandoned{};
+
+  /**
    * Allocates the slot tables from `arena`: `variableCount` brain-variable
    * slots, `callSiteCount` per-callsite host-state slots (initially absent),
    * the `callSiteCount` by `callSiteSlotStride` bytecode callsite-var pad
    * (initialized to nil) plus its allocation flags, `systemCount` brain-global
-   * System store slots (initialized to nil), and `ruleFiringCount` per-rule
-   * firing records (initialized to {@link RuleFiringState::DidFire}). Returns
-   * false when the arena cannot back them, leaving the tables empty.
+   * System store slots (initialized to nil), and `ruleRecordCount` entries in
+   * each of the three per-rule tables: firing records (initialized to
+   * {@link RuleFiringState::DidFire}), watcher slots (empty), and abandonment
+   * marks (clear). Returns false when the arena cannot back them, leaving the
+   * tables empty.
    *
    * Each variable slot is seeded from the matching `variableInitValues` entry,
    * an index into `constValues` or {@link kNoVariableInit}. A slot with no
    * entry, or whose entry is the sentinel, is initialized to nil.
    */
   bool bindSlots(RegionArena& arena, uint32_t variableCount, uint32_t callSiteCount,
-                 uint32_t slotStride = 0, uint32_t systemCount = 0, uint32_t ruleFiringCount = 0,
+                 uint32_t slotStride = 0, uint32_t systemCount = 0, uint32_t ruleRecordCount = 0,
                  Span<const uint32_t> variableInitValues = {},
                  Span<const ConstValue> constValues = {}) {
     Value* vars = arena.allocate<Value>(variableCount);
@@ -157,11 +180,14 @@ struct ExecutionContext {
     Value* slots = arena.allocate<Value>(slotTotal);
     bool* allocated = arena.allocate<bool>(callSiteCount);
     Value* sysSlots = arena.allocate<Value>(systemCount);
-    RuleFiringState* firing = arena.allocate<RuleFiringState>(ruleFiringCount);
+    RuleFiringState* firing = arena.allocate<RuleFiringState>(ruleRecordCount);
+    uint32_t* watchers = arena.allocate<uint32_t>(ruleRecordCount);
+    bool* abandoned = arena.allocate<bool>(ruleRecordCount);
     if ((variableCount > 0 && vars == nullptr) ||
         (callSiteCount > 0 && (states == nullptr || present == nullptr || allocated == nullptr)) ||
         (slotTotal > 0 && slots == nullptr) || (systemCount > 0 && sysSlots == nullptr) ||
-        (ruleFiringCount > 0 && firing == nullptr)) {
+        (ruleRecordCount > 0 &&
+         (firing == nullptr || watchers == nullptr || abandoned == nullptr))) {
       return false;
     }
     for (uint32_t i = 0; i < variableCount; i++) {
@@ -184,8 +210,10 @@ struct ExecutionContext {
     for (uint32_t i = 0; i < systemCount; i++) {
       sysSlots[i] = kNilValue;
     }
-    for (uint32_t i = 0; i < ruleFiringCount; i++) {
+    for (uint32_t i = 0; i < ruleRecordCount; i++) {
       firing[i] = RuleFiringState::DidFire;
+      watchers[i] = kNoHandleId;
+      abandoned[i] = false;
     }
     variables = {vars, variableCount};
     callSiteStates = {states, callSiteCount};
@@ -194,7 +222,9 @@ struct ExecutionContext {
     callSiteSlotStride = slotStride;
     callSiteAllocated = {allocated, callSiteCount};
     systemStore = {sysSlots, systemCount};
-    ruleFiring = {firing, ruleFiringCount};
+    ruleFiring = {firing, ruleRecordCount};
+    ruleWatchers = {watchers, ruleRecordCount};
+    ruleAbandoned = {abandoned, ruleRecordCount};
     return true;
   }
 
@@ -220,6 +250,66 @@ struct ExecutionContext {
       return;
     }
     ruleFiring[ruleFuncId] = state;
+  }
+
+  /**
+   * The pending rule-trigger handle watching `ruleFuncId` for completion, or
+   * {@link kNoHandleId} when the slot is empty, no rule is in scope, or the
+   * slots are unbound.
+   */
+  uint32_t ruleWatcher(uint32_t ruleFuncId) const {
+    if (ruleFuncId == kNoFuncId || ruleFuncId >= ruleWatchers.size()) {
+      return kNoHandleId;
+    }
+    return ruleWatchers[ruleFuncId];
+  }
+
+  /**
+   * Parks `handleId` in `ruleFuncId`'s watcher slot, replacing whatever it
+   * held. A no-op when no rule is in scope or the slots are unbound.
+   */
+  void setRuleWatcher(uint32_t ruleFuncId, uint32_t handleId) {
+    if (ruleFuncId == kNoFuncId || ruleFuncId >= ruleWatchers.size()) {
+      return;
+    }
+    ruleWatchers[ruleFuncId] = handleId;
+  }
+
+  /** Empties `ruleFuncId`'s watcher slot. */
+  void clearRuleWatcher(uint32_t ruleFuncId) { setRuleWatcher(ruleFuncId, kNoHandleId); }
+
+  /**
+   * True when `ruleFuncId`'s current firing lost a fiber to a fault or a
+   * cancellation anywhere in its cluster. False when no rule is in scope or the
+   * marks are unbound.
+   */
+  bool isRuleAbandoned(uint32_t ruleFuncId) const {
+    if (ruleFuncId == kNoFuncId || ruleFuncId >= ruleAbandoned.size()) {
+      return false;
+    }
+    return ruleAbandoned[ruleFuncId];
+  }
+
+  /**
+   * Records that `ruleFuncId`'s current firing was abandoned. A no-op when no
+   * rule is in scope or the marks are unbound.
+   */
+  void markRuleAbandoned(uint32_t ruleFuncId) {
+    if (ruleFuncId == kNoFuncId || ruleFuncId >= ruleAbandoned.size()) {
+      return;
+    }
+    ruleAbandoned[ruleFuncId] = true;
+  }
+
+  /**
+   * Drops `ruleFuncId`'s abandonment mark, which its next firing begins
+   * without.
+   */
+  void clearRuleAbandoned(uint32_t ruleFuncId) {
+    if (ruleFuncId == kNoFuncId || ruleFuncId >= ruleAbandoned.size()) {
+      return;
+    }
+    ruleAbandoned[ruleFuncId] = false;
   }
 
   /**

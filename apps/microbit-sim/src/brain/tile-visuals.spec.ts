@@ -19,25 +19,26 @@ const DATA_LABELED_KINDS = new Set<string>(["literal", "variable", "accessor", "
 /** Separates a tile id's namespace from its local name; a word carrying it came from the id. */
 const kTileIdSeparator = "->";
 
+/** Every catalog tile of the shipped microbit-v2 environment, including hidden and deprecated tiles. */
+function catalogTiles(): IBrainTileDef[] {
+  const env = createMicroBitV2Environment();
+  const tiles: IBrainTileDef[] = [];
+  for (const catalog of env.tileCatalogs()) {
+    const all = catalog.getAll();
+    for (let i = 0; i < all.size(); i++) {
+      tiles.push(all.get(i)!);
+    }
+  }
+  return tiles;
+}
+
 /**
  * Every catalog tile of the shipped microbit-v2 environment that the tile
  * picker can offer. Hidden and deprecated tiles are excluded, matching the
  * suggestion engine's filtering.
  */
 function visibleCatalogTiles(): IBrainTileDef[] {
-  const env = createMicroBitV2Environment();
-  const tiles: IBrainTileDef[] = [];
-  for (const catalog of env.tileCatalogs()) {
-    const all = catalog.getAll();
-    for (let i = 0; i < all.size(); i++) {
-      const tileDef = all.get(i)!;
-      if (tileDef.hidden || tileDef.deprecated) {
-        continue;
-      }
-      tiles.push(tileDef);
-    }
-  }
-  return tiles;
+  return catalogTiles().filter((tileDef) => !tileDef.hidden && !tileDef.deprecated);
 }
 
 /** Absolute on-disk path of an app-served icon URL (a root-absolute `/assets/...` path). */
@@ -84,7 +85,7 @@ describe("microbit-sim tile visuals", () => {
   });
 
   test("every tile-visuals map entry targets a shipped catalog tile and carries an icon", () => {
-    const shippedTileIds = new Set(visibleCatalogTiles().map((tileDef) => tileDef.tileId));
+    const shippedTileIds = new Set(catalogTiles().map((tileDef) => tileDef.tileId));
     const staleKeys: string[] = [];
     const iconless: string[] = [];
     for (const [tileId, visual] of tileVisuals) {

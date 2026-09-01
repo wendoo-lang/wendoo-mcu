@@ -5477,9 +5477,9 @@ TEST_CASE("a heap collection during a System think skips native receiver values"
 
 namespace {
 
-/** One scheduled think of an `otherwise` fixture: button levels, injected packets, then the
+/** One scheduled think of a trigger-mode fixture: button levels, injected packets, then the
  * advance. */
-struct OtherwiseStep {
+struct TriggerModeStep {
   /** Simulated milliseconds to advance before the think. */
   float advanceMs;
   /** Button A level: 1 down, 0 up, -1 unchanged. */
@@ -5491,14 +5491,15 @@ struct OtherwiseStep {
 };
 
 /**
- * Loads an `otherwise` fixture binary, replays its schedule through the host
- * loop, and byte-compares the rendered trace against the committed golden. The
- * brains reach the core sensor table (the `otherwise` sensor and the page-switch
- * actuator) plus the microbit buttons, radio, display scroll, and set-pixel.
- * Mirrors the schedules of wodal
- * packages/wodal/src/targets/microbit-v2/wendoo/otherwise-trace.spec.ts.
+ * Loads a rule trigger-mode fixture binary, replays its schedule through the
+ * host loop, and byte-compares the rendered trace against the committed golden.
+ * The brains reach the core sensor table (the `otherwise` sensor, the
+ * rule-trigger action, and the page-switch actuator) plus the microbit buttons,
+ * radio, display scroll, and set-pixel. Mirrors the schedules of wodal
+ * packages/wodal/src/targets/microbit-v2/wendoo/otherwise-trace.spec.ts and
+ * rule-trigger-modes-trace.spec.ts.
  */
-void runOtherwiseParity(const std::string& name, const std::vector<OtherwiseStep>& schedule) {
+void runTriggerModeParity(const std::string& name, const std::vector<TriggerModeStep>& schedule) {
   const std::string base = std::string(wendoo::test::kWodalFixturesDir) + "/" + name;
   const std::vector<uint8_t> wire = readBinaryFile(base + ".mcprogram.bin");
   const std::string golden = readTextFile(base + ".ticks.trace");
@@ -5542,13 +5543,14 @@ void runOtherwiseParity(const std::string& name, const std::vector<OtherwiseStep
   coreEnv.heap = &heap;
   coreEnv.roots = &scheduler;
   coreEnv.program = &image;
+  coreEnv.ruleLiveness = &scheduler;
 
   HostLoop hostLoop(brain, microbit.ports);
   REQUIRE(hostLoop.startup().isOk());
 
   float lastThinkTimeMs = 0;
   for (size_t i = 0; i < schedule.size(); i++) {
-    const OtherwiseStep& step = schedule[i];
+    const TriggerModeStep& step = schedule[i];
     if (step.a >= 0) {
       microbit.buttons.pressed[0] = step.a == 1;
     }
@@ -5574,56 +5576,180 @@ void runOtherwiseParity(const std::string& name, const std::vector<OtherwiseStep
 } // namespace
 
 TEST_CASE("the otherwise-pair fixture byte-matches the golden observable trace") {
-  runOtherwiseParity(
+  runTriggerModeParity(
       "otherwise-pair",
       {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, -1, -1, {}}, {16, 0, -1, {}}, {16, -1, -1, {}}});
 }
 
 TEST_CASE("the otherwise-presence-gated fixture byte-matches the golden observable trace") {
-  runOtherwiseParity("otherwise-presence-gated", {{16, -1, -1, {}},
-                                                  {16, -1, -1, {radioNumber(0)}},
-                                                  {16, -1, -1, {}},
-                                                  {16, -1, -1, {radioNumber(9)}}});
+  runTriggerModeParity("otherwise-presence-gated", {{16, -1, -1, {}},
+                                                    {16, -1, -1, {radioNumber(0)}},
+                                                    {16, -1, -1, {}},
+                                                    {16, -1, -1, {radioNumber(9)}}});
 }
 
 TEST_CASE("the otherwise-alternating-run fixture byte-matches the golden observable trace") {
-  runOtherwiseParity("otherwise-alternating-run",
-                     {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, 0, -1, {}}});
+  runTriggerModeParity("otherwise-alternating-run",
+                       {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, 0, -1, {}}});
 }
 
 TEST_CASE("the otherwise-after-empty-when fixture byte-matches the golden observable trace") {
-  runOtherwiseParity("otherwise-after-empty-when",
-                     {{16, -1, -1, {}}, {16, -1, -1, {}}, {16, -1, -1, {}}});
+  runTriggerModeParity("otherwise-after-empty-when",
+                       {{16, -1, -1, {}}, {16, -1, -1, {}}, {16, -1, -1, {}}});
 }
 
 TEST_CASE("the otherwise-in-expression fixture byte-matches the golden observable trace") {
-  runOtherwiseParity(
+  runTriggerModeParity(
       "otherwise-in-expression",
       {{16, -1, -1, {}}, {16, -1, 1, {}}, {16, 1, -1, {}}, {16, 0, -1, {}}, {16, -1, 0, {}}});
 }
 
 TEST_CASE("the otherwise-ladder fixture byte-matches the golden observable trace") {
-  runOtherwiseParity("otherwise-ladder", {{16, -1, -1, {}},
-                                          {16, 1, -1, {}},
-                                          {16, 0, 1, {}},
-                                          {16, -1, 0, {radioNumber(0)}},
-                                          {16, -1, -1, {}}});
+  runTriggerModeParity("otherwise-ladder", {{16, -1, -1, {}},
+                                            {16, 1, -1, {}},
+                                            {16, 0, 1, {}},
+                                            {16, -1, 0, {radioNumber(0)}},
+                                            {16, -1, -1, {}}});
 }
 
 TEST_CASE("the otherwise-page-reentry fixture byte-matches the golden observable trace") {
-  runOtherwiseParity("otherwise-page-reentry", {{16, -1, -1, {}},
-                                                {16, -1, 1, {}},
-                                                {16, -1, 0, {}},
-                                                {16, -1, -1, {}},
-                                                {16, 1, -1, {}},
-                                                {16, 0, -1, {}}});
+  runTriggerModeParity("otherwise-page-reentry", {{16, -1, -1, {}},
+                                                  {16, -1, 1, {}},
+                                                  {16, -1, 0, {}},
+                                                  {16, -1, -1, {}},
+                                                  {16, 1, -1, {}},
+                                                  {16, 0, -1, {}}});
 }
 
 TEST_CASE("the otherwise-parked-subject fixture byte-matches the golden observable trace") {
-  std::vector<OtherwiseStep> schedule;
+  std::vector<TriggerModeStep> schedule;
   for (int i = 0; i < 10; i++) {
     const int a = i == 1 ? 1 : (i == 4 ? 0 : -1);
-    schedule.push_back(OtherwiseStep{1100, a, -1, {}});
+    schedule.push_back(TriggerModeStep{1100, a, -1, {}});
   }
-  runOtherwiseParity("otherwise-parked-subject", schedule);
+  runTriggerModeParity("otherwise-parked-subject", schedule);
+}
+
+namespace {
+
+/** The twelve-think scroll schedule the parked-subject `then` fixtures share:
+ *  button A goes down on think 2 and back up on think 5. */
+std::vector<TriggerModeStep> parkedSubjectSchedule() {
+  std::vector<TriggerModeStep> schedule;
+  for (int i = 0; i < 12; i++) {
+    const int a = i == 1 ? 1 : (i == 4 ? 0 : -1);
+    schedule.push_back(TriggerModeStep{1100, a, -1, {}});
+  }
+  return schedule;
+}
+
+/** The six-think schedule the filtered `then` fixtures share: button A goes down
+ *  on think 2 and back up on think 6, button B alternates over thinks 3 to 5. */
+std::vector<TriggerModeStep> filteredThenSchedule() {
+  return {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, -1, 1, {}},
+          {16, -1, 0, {}},  {16, -1, 1, {}}, {16, 0, -1, {}}};
+}
+
+/** The five-think schedule the fast-cadence pair fixtures share: button A goes
+ *  down on think 2 and back up on think 4. */
+std::vector<TriggerModeStep> fastPairSchedule() {
+  return {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, -1, -1, {}}, {16, 0, -1, {}}, {16, -1, -1, {}}};
+}
+
+} // namespace
+
+TEST_CASE("the otherwise-chain-ladder fixture byte-matches the golden observable trace") {
+  runTriggerModeParity(
+      "otherwise-chain-ladder",
+      {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, 0, 1, {}}, {16, 1, -1, {}}, {16, 0, 0, {}}});
+}
+
+TEST_CASE("the otherwise-chain-presence-gated fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("otherwise-chain-presence-gated", {{16, -1, -1, {}},
+                                                          {16, -1, -1, {radioNumber(0)}},
+                                                          {16, -1, -1, {}},
+                                                          {16, -1, -1, {radioNumber(9)}},
+                                                          {16, 1, -1, {}}});
+}
+
+TEST_CASE("the otherwise-chain-parked-head fixture byte-matches the golden observable trace") {
+  std::vector<TriggerModeStep> schedule;
+  for (int i = 0; i < 10; i++) {
+    const int a = i == 1 ? 1 : (i == 4 ? 0 : -1);
+    schedule.push_back(TriggerModeStep{1100, a, i == 0 ? 1 : -1, {}});
+  }
+  runTriggerModeParity("otherwise-chain-parked-head", schedule);
+}
+
+TEST_CASE("the otherwise-chain-then-head fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("otherwise-chain-then-head", parkedSubjectSchedule());
+}
+
+TEST_CASE("the otherwise-chain-migrated-pair fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("otherwise-chain-migrated-pair", fastPairSchedule());
+}
+
+TEST_CASE("the then-after-childless-sibling fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("then-after-childless-sibling", fastPairSchedule());
+}
+
+TEST_CASE("the then-silent-sibling fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("then-silent-sibling",
+                       {{16, -1, -1, {}}, {16, -1, -1, {}}, {16, -1, -1, {}}});
+}
+
+TEST_CASE("the then-after-empty-do-sibling fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("then-after-empty-do-sibling",
+                       {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, -1, -1, {}}, {16, 0, -1, {}}});
+}
+
+TEST_CASE("the then-after-parked-child fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("then-after-parked-child", parkedSubjectSchedule());
+}
+
+TEST_CASE("the then-filtered fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("then-filtered", filteredThenSchedule());
+}
+
+TEST_CASE("the then-chain-root fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("then-chain-root", parkedSubjectSchedule());
+}
+
+TEST_CASE("the then-chain-child fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("then-chain-child",
+                       {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, -1, -1, {}}, {16, 0, -1, {}}});
+}
+
+TEST_CASE("the then-chain-skipped-middle fixture byte-matches the golden observable trace") {
+  runTriggerModeParity("then-chain-skipped-middle", filteredThenSchedule());
+}
+
+TEST_CASE("the then-chain-parked-links fixture byte-matches the golden observable trace") {
+  // Thirteen rules, every one parking on its own awaited scroll: a chain longer
+  // than the profile's concurrent-handle cap. Each waiting link holds an
+  // uncapped pending trigger handle, so the chain marches to its last link.
+  constexpr int kLinks = 12;
+  constexpr int kThinksPerLink = 3;
+  constexpr int kTickMs = 5000;
+  std::vector<TriggerModeStep> schedule;
+  const size_t thinks = 1 + static_cast<size_t>(kLinks + 1) * kThinksPerLink + 3;
+  for (size_t i = 0; i < thinks; i++) {
+    const int a = i == 1 ? 1 : (i == 2 ? 0 : -1);
+    schedule.push_back(TriggerModeStep{kTickMs, a, -1, {}});
+  }
+  runTriggerModeParity("then-chain-parked-links", schedule);
+}
+
+TEST_CASE("the then-page-reentry fixture byte-matches the golden observable trace") {
+  std::vector<TriggerModeStep> schedule{
+      {1100, -1, -1, {}}, {1100, 1, -1, {}}, {1100, 0, 1, {}}, {1100, -1, 0, {}}};
+  for (int i = 0; i < 5; i++) {
+    schedule.push_back(TriggerModeStep{1100, -1, -1, {}});
+  }
+  schedule.push_back(TriggerModeStep{1100, 1, -1, {}});
+  schedule.push_back(TriggerModeStep{1100, 0, -1, {}});
+  for (int i = 0; i < 7; i++) {
+    schedule.push_back(TriggerModeStep{1100, -1, -1, {}});
+  }
+  runTriggerModeParity("then-page-reentry", schedule);
 }

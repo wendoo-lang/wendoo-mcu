@@ -49,7 +49,10 @@ struct DeviceProfileCaps {
   /** Per-fiber try-handler depth cap. */
   uint32_t maxHandlers;
 
-  /** Pending async-handle cap. Zero until async handles are implemented. */
+  /**
+   * Concurrent async-handle cap. Bounds the live handles that count against it;
+   * a binding declaring `uncappedHandles` allocates outside this accounting.
+   */
   uint32_t maxHandles;
 };
 

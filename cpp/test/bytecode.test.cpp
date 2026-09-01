@@ -41,12 +41,14 @@ TEST_CASE("Op values are wire-stable at the group boundaries") {
   CHECK(static_cast<uint8_t>(Op::CALL_INDIRECT) == 160);
   CHECK(static_cast<uint8_t>(Op::MAKE_CLOSURE) == 170);
   CHECK(static_cast<uint8_t>(Op::LOAD_CAPTURE) == 171);
+  CHECK(static_cast<uint8_t>(Op::WHEN_END_CHAIN) == 172);
+  CHECK(static_cast<uint8_t>(Op::WHEN_END_PRESENT_CHAIN) == 173);
 }
 
 TEST_CASE("schema covers every declared opcode in declaration order") {
   REQUIRE(std::size(kOperandSchema) == kOpCount);
   CHECK(kOperandSchema[0].op == Op::PUSH_CONST_VAL);
-  CHECK(kOperandSchema[kOpCount - 1].op == Op::LOAD_CAPTURE);
+  CHECK(kOperandSchema[kOpCount - 1].op == Op::WHEN_END_PRESENT_CHAIN);
 }
 
 TEST_CASE("schema rows for known opcodes match the TS operand layout") {
@@ -99,7 +101,7 @@ TEST_CASE("schema rows for known opcodes match the TS operand layout") {
   CHECK(reserved->operandCount == 0);
 }
 
-TEST_CASE("exactly the six rel-offset opcodes use the signed encoding") {
+TEST_CASE("exactly the eight rel-offset opcodes use the signed encoding") {
   uint32_t svarCount = 0;
   for (const OpOperandSchema& row : kOperandSchema) {
     for (uint8_t i = 0; i < row.operandCount; i++) {
@@ -107,12 +109,13 @@ TEST_CASE("exactly the six rel-offset opcodes use the signed encoding") {
         svarCount++;
         const bool isRelOffsetOp = row.op == Op::JMP || row.op == Op::JMP_IF_FALSE ||
                                    row.op == Op::JMP_IF_TRUE || row.op == Op::WHEN_END ||
-                                   row.op == Op::WHEN_END_PRESENT || row.op == Op::TRY;
+                                   row.op == Op::WHEN_END_PRESENT || row.op == Op::WHEN_END_CHAIN ||
+                                   row.op == Op::WHEN_END_PRESENT_CHAIN || row.op == Op::TRY;
         CHECK(isRelOffsetOp);
       }
     }
   }
-  CHECK(svarCount == 6);
+  CHECK(svarCount == 8);
 }
 
 TEST_CASE("exactly the four typed constructors carry an optional trailing operand") {
