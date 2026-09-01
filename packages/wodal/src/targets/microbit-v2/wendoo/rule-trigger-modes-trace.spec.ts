@@ -9,8 +9,7 @@
  * ladder: a three-rule ladder driven through head-fires, middle-fires, and
  * none-fire thinks, a ladder whose head parks on an awaited actuator, a ladder
  * headed by a `then` rule exercised during its wait and after its fire, and a
- * bare else pair authored with the deprecated `otherwise` tile that load-time
- * migration converts to the mode. The `then-*` fixtures cover the await model:
+ * bare else pair. The `then-*` fixtures cover the await model:
  * a bare `then` after a childless sibling, after a sibling with an empty DO,
  * after a sibling that never fires, and after a sibling whose child parks
  * across thinks; a filtered `then` whose expression holds and does not hold at
@@ -100,9 +99,7 @@ type WhenSpec =
   /** No WHEN condition: an armed rule fires every think it evaluates. */
   | { readonly kind: "empty" }
   /** A device sensor, optionally carrying a modifier tile. */
-  | { readonly kind: "sensor"; readonly sensor: HostActionIds; readonly modifierId?: string }
-  /** The deprecated bare `otherwise` sensor tile, which load-time migration rewrites. */
-  | { readonly kind: "otherwiseTile" };
+  | { readonly kind: "sensor"; readonly sensor: HostActionIds; readonly modifierId?: string };
 
 /** One rule of a fixture's tree: its trigger mode, its WHEN, its DO, and its children. */
 interface RuleSpec {
@@ -151,11 +148,6 @@ interface TriggerFixture {
    * fixture whose rules do not scroll.
    */
   readonly expectedScrolls?: readonly number[];
-  /**
-   * Whether the authored brain is serialized and reloaded before it is built,
-   * so load-time migration rewrites its deprecated `otherwise` tiles.
-   */
-  readonly migrated?: boolean;
   /** Opcodes the committed program must carry. */
   readonly requiredOpcodes?: readonly number[];
 }
@@ -332,14 +324,13 @@ const FIXTURES: readonly TriggerFixture[] = [
     expectedTriggerDispatches: [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
   },
   {
-    // The deprecated bare tile authored on the second rule, converted to the
-    // mode on load: the pair runs as an else branch and the compiled program
-    // carries the chain gate.
+    // A bare else on the second rule: the pair runs as an else branch and the
+    // compiled program carries the chain gate.
     name: "otherwise-chain-migrated-pair",
     pages: [
       [
         { when: buttonAHeld, pixel: [0, 0] },
-        { when: { kind: "otherwiseTile" }, pixel: [1, 0] },
+        { trigger: RuleTriggerMode.Otherwise, when: { kind: "empty" }, pixel: [1, 0] },
       ],
     ],
     schedule: [
@@ -350,7 +341,6 @@ const FIXTURES: readonly TriggerFixture[] = [
       { advanceMs: FAST_TICK_MS },
     ],
     expectedPixels: [[[1, 0]], [[0, 0]], [[0, 0]], [[1, 0]], [[1, 0]]],
-    migrated: true,
     requiredOpcodes: [Op.WHEN_END_CHAIN],
   },
   {
@@ -705,12 +695,6 @@ function appendWhen(env: WendooEnvironment, rule: BrainRuleDef, spec: WhenSpec):
       }
       return;
     }
-    case "otherwiseTile": {
-      const otherwiseTile = tiles.get(mkSensorTileId(CoreHostActions.Otherwise.key));
-      assert.ok(otherwiseTile, "the deprecated otherwise sensor tile must still be registered");
-      rule.when().appendTile(otherwiseTile);
-      return;
-    }
   }
 }
 
@@ -752,19 +736,6 @@ function authorBrainDef(env: WendooEnvironment, fixture: TriggerFixture): BrainD
   return brainDef;
 }
 
-/**
- * The brain a fixture builds from: the authored tree, or -- for a migrated
- * fixture -- the tree a serialize/reload round trip produced, where the
- * deprecated `otherwise` tile is rewritten to the mode.
- */
-function buildBrainDef(env: WendooEnvironment, fixture: TriggerFixture): BrainDef {
-  const authored = authorBrainDef(env, fixture);
-  if (fixture.migrated !== true) {
-    return authored;
-  }
-  return BrainDef.fromJson(authored.toJson(), env.brainServices);
-}
-
 function buildImage(env: WendooEnvironment, brainDef: BrainDef): WodalProgramImage<LinkedBrainProgram> {
   const built = buildWodalProgramImage({
     brainDef,
@@ -783,7 +754,7 @@ function ensureJsonGolden(jsonPath: string, fixture: TriggerFixture): void {
     return;
   }
   const env = createMicroBitV2Environment();
-  const image = buildImage(env, buildBrainDef(env, fixture));
+  const image = buildImage(env, authorBrainDef(env, fixture));
   writeFileSync(
     jsonPath,
     serializeWodalProgramImageJson({ ...image, program: linkedBrainProgramToJson(image.program) })
@@ -975,27 +946,3 @@ for (const fixture of FIXTURES) {
     assert.equal(readFileSync(tracePath, "utf8"), first, `${fixture.name}.ticks.trace is not byte-stable`);
   });
 }
-
-test("the deprecated otherwise tile migrates to the mode before the brain is built", () => {
-  const fixture = FIXTURES.find((candidate) => candidate.migrated === true);
-  assert.ok(fixture, "a migrated fixture must exist for this pin");
-
-  const env = createMicroBitV2Environment();
-  const authored = authorBrainDef(env, fixture);
-  const authoredRule = authored.pages().get(0)!.children().get(1)!;
-  assert.equal(authoredRule.trigger(), RuleTriggerMode.When, "the authored rule carries the tile as its WHEN");
-  assert.deepEqual(
-    authoredRule
-      .when()
-      .tiles()
-      .toArray()
-      .map((tile) => tile.tileId),
-    [mkSensorTileId(CoreHostActions.Otherwise.key)],
-    "the authored rule's WHEN is exactly the deprecated otherwise tile"
-  );
-
-  const loaded = BrainDef.fromJson(authored.toJson(), env.brainServices);
-  const loadedRule = loaded.pages().get(0)!.children().get(1)!;
-  assert.equal(loadedRule.trigger(), RuleTriggerMode.Otherwise, "load-time migration gave the rule the mode");
-  assert.ok(loadedRule.when().isEmpty(), "load-time migration emptied the rule's WHEN");
-});

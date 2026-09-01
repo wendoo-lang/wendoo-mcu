@@ -383,8 +383,8 @@ describe("microbit-v2 paragraph readings", () => {
 
   test("a parent with no action of its own is completed by its child's clause", () => {
     assert.equal(
-      paragraph([{ when: [sensor(CoreHostActions.Otherwise.key)], children: [{ when: [buttonA()], do: [clear()] }] }]),
-      "Otherwise, when button A pressed, clear display."
+      paragraph([{ when: [gesture()], children: [{ when: [buttonA()], do: [clear()] }] }]),
+      "When gesture shake, when button A pressed, clear display."
     );
   });
 

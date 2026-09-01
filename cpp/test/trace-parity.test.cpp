@@ -5496,8 +5496,7 @@ struct TriggerModeStep {
  * The brains reach the core sensor table (the `otherwise` sensor, the
  * rule-trigger action, and the page-switch actuator) plus the microbit buttons,
  * radio, display scroll, and set-pixel. Mirrors the schedules of wodal
- * packages/wodal/src/targets/microbit-v2/wendoo/otherwise-trace.spec.ts and
- * rule-trigger-modes-trace.spec.ts.
+ * packages/wodal/src/targets/microbit-v2/wendoo/rule-trigger-modes-trace.spec.ts.
  */
 void runTriggerModeParity(const std::string& name, const std::vector<TriggerModeStep>& schedule) {
   const std::string base = std::string(wendoo::test::kWodalFixturesDir) + "/" + name;
@@ -5572,65 +5571,6 @@ void runTriggerModeParity(const std::string& name, const std::vector<TriggerMode
 
   CHECK(sink.text() == golden);
 }
-
-} // namespace
-
-TEST_CASE("the otherwise-pair fixture byte-matches the golden observable trace") {
-  runTriggerModeParity(
-      "otherwise-pair",
-      {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, -1, -1, {}}, {16, 0, -1, {}}, {16, -1, -1, {}}});
-}
-
-TEST_CASE("the otherwise-presence-gated fixture byte-matches the golden observable trace") {
-  runTriggerModeParity("otherwise-presence-gated", {{16, -1, -1, {}},
-                                                    {16, -1, -1, {radioNumber(0)}},
-                                                    {16, -1, -1, {}},
-                                                    {16, -1, -1, {radioNumber(9)}}});
-}
-
-TEST_CASE("the otherwise-alternating-run fixture byte-matches the golden observable trace") {
-  runTriggerModeParity("otherwise-alternating-run",
-                       {{16, -1, -1, {}}, {16, 1, -1, {}}, {16, 0, -1, {}}});
-}
-
-TEST_CASE("the otherwise-after-empty-when fixture byte-matches the golden observable trace") {
-  runTriggerModeParity("otherwise-after-empty-when",
-                       {{16, -1, -1, {}}, {16, -1, -1, {}}, {16, -1, -1, {}}});
-}
-
-TEST_CASE("the otherwise-in-expression fixture byte-matches the golden observable trace") {
-  runTriggerModeParity(
-      "otherwise-in-expression",
-      {{16, -1, -1, {}}, {16, -1, 1, {}}, {16, 1, -1, {}}, {16, 0, -1, {}}, {16, -1, 0, {}}});
-}
-
-TEST_CASE("the otherwise-ladder fixture byte-matches the golden observable trace") {
-  runTriggerModeParity("otherwise-ladder", {{16, -1, -1, {}},
-                                            {16, 1, -1, {}},
-                                            {16, 0, 1, {}},
-                                            {16, -1, 0, {radioNumber(0)}},
-                                            {16, -1, -1, {}}});
-}
-
-TEST_CASE("the otherwise-page-reentry fixture byte-matches the golden observable trace") {
-  runTriggerModeParity("otherwise-page-reentry", {{16, -1, -1, {}},
-                                                  {16, -1, 1, {}},
-                                                  {16, -1, 0, {}},
-                                                  {16, -1, -1, {}},
-                                                  {16, 1, -1, {}},
-                                                  {16, 0, -1, {}}});
-}
-
-TEST_CASE("the otherwise-parked-subject fixture byte-matches the golden observable trace") {
-  std::vector<TriggerModeStep> schedule;
-  for (int i = 0; i < 10; i++) {
-    const int a = i == 1 ? 1 : (i == 4 ? 0 : -1);
-    schedule.push_back(TriggerModeStep{1100, a, -1, {}});
-  }
-  runTriggerModeParity("otherwise-parked-subject", schedule);
-}
-
-namespace {
 
 /** The twelve-think scroll schedule the parked-subject `then` fixtures share:
  *  button A goes down on think 2 and back up on think 5. */
