@@ -13,6 +13,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   assertDependencyDistsFresh,
+  createTargetBuildStamp,
   readTargetIdentity,
   StaleDependencyError,
 } from "@wendoo/assistant-bridge/kit/node";
@@ -36,10 +37,11 @@ try {
 
 const targetIdentity = readTargetIdentity(appDir);
 
-/** The module the artifact publishes: the device's adapter under this target's identity. */
+/** The module the artifact publishes: the device's adapter under this target's identity, stamped with the language build it bundles. */
 const artifactEntry = [
   `import { createTargetAdapter as createDeviceAdapter } from ${JSON.stringify(ADAPTER_ENTRY)};`,
   `export const createTargetAdapter = () => createDeviceAdapter(${JSON.stringify(targetIdentity)});`,
+  `export const buildStamp = ${JSON.stringify(createTargetBuildStamp(appDir))};`,
   "",
 ].join("\n");
 
