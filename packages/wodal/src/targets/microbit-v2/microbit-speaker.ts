@@ -7,6 +7,12 @@ export const MIN_TONE_FREQUENCY_HZ = 0;
 /** Highest tone pitch the speaker port accepts, in Hz. */
 export const MAX_TONE_FREQUENCY_HZ = 9999;
 
+/** Quietest tone the speaker port accepts, as a fraction of full volume. */
+export const MIN_TONE_VOLUME = 0;
+
+/** Loudest tone the speaker port accepts, as a fraction of full volume. */
+export const MAX_TONE_VOLUME = 1;
+
 /** Oscillator wave shape of a plain constant-pitch tone. */
 export type SpeakerToneWaveform = "square" | "sawtooth" | "sine" | "triangle";
 
@@ -67,7 +73,7 @@ export function mkSpeakerToneCommand(
   volume: number
 ): SpeakerToneCommand {
   const clampedFrequency = Math.min(Math.max(frequencyHz, MIN_TONE_FREQUENCY_HZ), MAX_TONE_FREQUENCY_HZ);
-  const clampedVolume = Math.min(Math.max(volume, 0), 1);
+  const clampedVolume = Math.min(Math.max(volume, MIN_TONE_VOLUME), MAX_TONE_VOLUME);
   return {
     waveform,
     frequencyHz: clampedFrequency,

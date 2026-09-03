@@ -8,12 +8,14 @@ import {
   isListValue,
   isStructValue,
   mkCallDef,
+  mkNumberValue,
   optional,
   type ReadonlyList,
   repeated,
   type Value,
   VOID_VALUE,
 } from "@wendoo/core/app";
+import type { BrainActionCallArgSpec } from "@wendoo/core/runtime";
 import { bufferByteAt, bufferLength, isBufferValue } from "@wendoo/core/runtime";
 import { toNonNegativeInteger } from "../../../../core/numeric";
 import { ImageField } from "../../../../wendoo/shared-type-ids";
@@ -24,23 +26,32 @@ import { hasModifier, Modifier } from "../modifiers";
 import { Param } from "../parameters";
 import { MicroBitV2HostActions } from "../tile-ids";
 
-/** Milliseconds a draw holds the display when the call omits the optional duration (1 second). */
+const MS_PER_SECOND = 1000;
+
+/** Milliseconds a draw holds the display when the call omits the optional duration. */
 export const DEFAULT_DURATION_MS = 1000;
 
 /** The built-in image drawn when the call omits the optional image (the `happy` icon). */
 export const DEFAULT_IMAGE: ClippedFrame = builtInImageFrame(getBuiltInImage(DEFAULT_BUILT_IN_IMAGE_NAME));
 
+/** How long the drawing stands, in seconds; a negative one shows nothing. */
+const Duration = {
+  ...Param.duration,
+  default: mkNumberValue(DEFAULT_DURATION_MS / MS_PER_SECOND),
+  range: { min: 0, onExceed: "clamp" },
+} satisfies BrainActionCallArgSpec;
+
 const callDef = mkCallDef(
   bag(
     optional(repeated(Param.image, { min: 0 })),
-    optional(Param.duration),
+    optional(Duration),
     optional(Modifier.immediately),
     optional(Modifier.inBackground)
   )
 );
 
 const kImageSlotId = getSlotId(callDef, Param.image);
-const kDurationSlotId = getSlotId(callDef, Param.duration);
+const kDurationSlotId = getSlotId(callDef, Duration);
 const kImmediatelySlotId = getSlotId(callDef, Modifier.immediately);
 const kInBackgroundSlotId = getSlotId(callDef, Modifier.inBackground);
 
@@ -128,7 +139,9 @@ function execDrawImage(ctx: ExecutionContext, args: ReadonlyList<Value>, handle:
   const durationSeconds = extractNumberValue(args.at(kDurationSlotId));
   // Convert the seconds argument to whole ms at f32 precision, matching the device.
   const durationMs =
-    durationSeconds === undefined ? DEFAULT_DURATION_MS : toNonNegativeInteger(Math.fround(durationSeconds * 1000));
+    durationSeconds === undefined
+      ? DEFAULT_DURATION_MS
+      : toNonNegativeInteger(Math.fround(durationSeconds * MS_PER_SECOND));
   const inBackground = hasModifier(args, kInBackgroundSlotId);
   microbit.display.drawImage(frames, durationMs, ctx.time, (end) => {
     handle.resolve(VOID_VALUE);

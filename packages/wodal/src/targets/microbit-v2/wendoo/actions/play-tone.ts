@@ -8,13 +8,22 @@ import {
   extractNumberValue,
   getSlotId,
   mkCallDef,
+  mkNumberValue,
   optional,
   param,
   type ReadonlyList,
   type Value,
   VOID_VALUE,
 } from "@wendoo/core/app";
-import { mkSpeakerToneCommand, type SpeakerToneWaveform } from "../../microbit-speaker";
+import type { BrainActionCallArgSpec } from "@wendoo/core/runtime";
+import {
+  MAX_TONE_FREQUENCY_HZ,
+  MAX_TONE_VOLUME,
+  MIN_TONE_FREQUENCY_HZ,
+  MIN_TONE_VOLUME,
+  mkSpeakerToneCommand,
+  type SpeakerToneWaveform,
+} from "../../microbit-speaker";
 import { getMicroBitContextDevice, reportDeviceOperationEnding } from "../context";
 import { hasModifier, Modifier } from "../modifiers";
 import { Param } from "../parameters";
@@ -32,13 +41,33 @@ export const DEFAULT_VOLUME = 1;
 /** Wave shape a tone sounds with when the call names none. */
 export const DEFAULT_WAVEFORM: SpeakerToneWaveform = "triangle";
 
-const AnonFrequency = param(CoreParameterId.AnonymousNumber, { anonymous: true });
+const AnonFrequency = param(CoreParameterId.AnonymousNumber, {
+  anonymous: true,
+  name: "pitch",
+  unit: "Hz",
+  default: mkNumberValue(DEFAULT_FREQUENCY_HZ),
+  range: { min: MIN_TONE_FREQUENCY_HZ, max: MAX_TONE_FREQUENCY_HZ, onExceed: "clamp" },
+});
+
+/** The duration this tone sounds for, in seconds; a negative one is dropped. */
+const Duration = {
+  ...Param.duration,
+  default: mkNumberValue(DEFAULT_DURATION_SECONDS),
+  range: { min: 0, onExceed: "drop" },
+} satisfies BrainActionCallArgSpec;
+
+/** The share of full volume this tone sounds at. */
+const Volume = {
+  ...Param.volume,
+  default: mkNumberValue(DEFAULT_VOLUME),
+  range: { min: MIN_TONE_VOLUME, max: MAX_TONE_VOLUME, onExceed: "clamp" },
+} satisfies BrainActionCallArgSpec;
 
 const callDef = mkCallDef(
   bag(
     optional(AnonFrequency),
-    optional(Param.duration),
-    optional(Param.volume),
+    optional(Duration),
+    optional(Volume),
     optional(choice(Modifier.square, Modifier.sawtooth, Modifier.sine, Modifier.triangle)),
     optional(Modifier.immediately),
     optional(Modifier.inBackground)
@@ -46,8 +75,8 @@ const callDef = mkCallDef(
 );
 
 const kFrequencySlotId = getSlotId(callDef, AnonFrequency);
-const kDurationSlotId = getSlotId(callDef, Param.duration);
-const kVolumeSlotId = getSlotId(callDef, Param.volume);
+const kDurationSlotId = getSlotId(callDef, Duration);
+const kVolumeSlotId = getSlotId(callDef, Volume);
 const kSquareSlotId = getSlotId(callDef, Modifier.square);
 const kSawtoothSlotId = getSlotId(callDef, Modifier.sawtooth);
 const kSineSlotId = getSlotId(callDef, Modifier.sine);
@@ -130,6 +159,6 @@ export default {
   metadata: {
     label: "beep",
     grammarNote:
-      'Plays a plain tone: the bare number is the pitch in Hz (default 880; 0 plays silence for the duration, a rest), "duration" is in seconds (default 0.5), "volume" is 0 to 1 (default 1), and one wave-shape word (square / sawtooth / sine / triangle) picks the sound, triangle when none is given. The rule holds until the tone ends: until then a rule under it does not get its turn, and this rule cannot fire again. A tone asked for while a sound is playing is dropped; add "in background" to let the rule carry on, or "immediately" to cut off the sound that is playing.',
+      'A pitch of 0 plays silence for the duration, a rest. One wave-shape word (square / sawtooth / sine / triangle) picks the sound, triangle when none is given. The rule holds until the tone ends: until then a rule under it does not get its turn, and this rule cannot fire again. A tone asked for while a sound is playing is dropped; add "in background" to let the rule carry on, or "immediately" to cut off the sound that is playing.',
   },
 } satisfies CreateHostActuatorOptions;

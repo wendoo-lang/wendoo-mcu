@@ -5,25 +5,40 @@ import {
   extractNumberValue,
   getSlotId,
   mkCallDef,
+  mkNumberValue,
   optional,
   type ReadonlyList,
   type Value,
   VOID_VALUE,
 } from "@wendoo/core/app";
 import { getMicroBitContextDevice } from "../context";
-import { Param } from "../parameters";
+import { MAX_BRIGHTNESS, Param } from "../parameters";
 import { MicroBitV2HostActions } from "../tile-ids";
 import { brightnessToPort, pixelCoordToPort } from "./display-pixel-conversion";
 
+/** Column a set-pixel writes when the call names no x. */
 const DEFAULT_X = 0;
+
+/** Row a set-pixel writes when the call names no y. */
 const DEFAULT_Y = 0;
-const DEFAULT_BRIGHTNESS = 255;
 
-const callDef = mkCallDef(bag(optional(Param.x), optional(Param.y), optional(Param.brightness)));
+/** LED level a set-pixel writes when the call names no brightness. */
+const DEFAULT_BRIGHTNESS = MAX_BRIGHTNESS;
 
-const kXSlotId = getSlotId(callDef, Param.x);
-const kYSlotId = getSlotId(callDef, Param.y);
-const kBrightnessSlotId = getSlotId(callDef, Param.brightness);
+/** The column written; one off the display is not written at all. */
+const X = { ...Param.x, default: mkNumberValue(DEFAULT_X) };
+
+/** The row written; one off the display is not written at all. */
+const Y = { ...Param.y, default: mkNumberValue(DEFAULT_Y) };
+
+/** The LED level written. */
+const Brightness = { ...Param.brightness, default: mkNumberValue(DEFAULT_BRIGHTNESS) };
+
+const callDef = mkCallDef(bag(optional(X), optional(Y), optional(Brightness)));
+
+const kXSlotId = getSlotId(callDef, X);
+const kYSlotId = getSlotId(callDef, Y);
+const kBrightnessSlotId = getSlotId(callDef, Brightness);
 
 function execDisplaySetPixel(ctx: ExecutionContext, args: ReadonlyList<Value>): Value {
   const microbit = getMicroBitContextDevice(ctx);

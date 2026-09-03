@@ -12,17 +12,23 @@ import {
   type Value,
   VOID_VALUE,
 } from "@wendoo/core/app";
-import { DEFAULT_BUILT_IN_SOUND_NAME, SoundEmojiField } from "../built-in-sounds";
+import {
+  builtInSoundStructValue,
+  DEFAULT_BUILT_IN_SOUND_NAME,
+  findBuiltInSound,
+  SoundEmojiField,
+} from "../built-in-sounds";
 import { getMicroBitContextDevice, reportDeviceOperationEnding } from "../context";
 import { hasModifier, Modifier } from "../modifiers";
 import { Param } from "../parameters";
 import { MicroBitV2HostActions } from "../tile-ids";
 
-const callDef = mkCallDef(
-  bag(optional(Param.soundEmoji), optional(Modifier.immediately), optional(Modifier.inBackground))
-);
+/** The built-in sound a call naming none plays. */
+const Sound = { ...Param.soundEmoji, default: builtInSoundStructValue(findBuiltInSound(DEFAULT_BUILT_IN_SOUND_NAME)!) };
 
-const kSoundSlotId = getSlotId(callDef, Param.soundEmoji);
+const callDef = mkCallDef(bag(optional(Sound), optional(Modifier.immediately), optional(Modifier.inBackground)));
+
+const kSoundSlotId = getSlotId(callDef, Sound);
 const kImmediatelySlotId = getSlotId(callDef, Modifier.immediately);
 const kInBackgroundSlotId = getSlotId(callDef, Modifier.inBackground);
 

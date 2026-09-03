@@ -24,10 +24,16 @@ import { MicroBitV2HostActions, WodalMicroBitV2ParameterId } from "../tile-ids";
 
 const EMPTY_BYTES = new Uint8Array(0);
 
-const AnonNumber = param(CoreParameterId.AnonymousNumber, { anonymous: true });
-const AnonString = param(CoreParameterId.AnonymousString, { anonymous: true });
-const AnonBoolean = param(CoreParameterId.AnonymousBoolean, { anonymous: true });
-const AnonBuffer = param(WodalMicroBitV2ParameterId.Buffer, { anonymous: true });
+/**
+ * What an empty payload slot means: the value the rule's WHEN side found. Each
+ * alternative names itself, since one name identifies one spec to the grammar.
+ */
+const message = { anonymous: true, derived: true } as const;
+
+const AnonNumber = param(CoreParameterId.AnonymousNumber, { ...message, name: "message-number" });
+const AnonString = param(CoreParameterId.AnonymousString, { ...message, name: "message-text" });
+const AnonBoolean = param(CoreParameterId.AnonymousBoolean, { ...message, name: "message-yes-no" });
+const AnonBuffer = param(WodalMicroBitV2ParameterId.Buffer, { ...message, name: "message-bytes" });
 
 const callDef = mkCallDef(bag(optional(choice(AnonNumber, AnonString, AnonBoolean, AnonBuffer))));
 

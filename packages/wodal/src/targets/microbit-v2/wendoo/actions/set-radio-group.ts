@@ -6,6 +6,7 @@ import {
   extractNumberValue,
   getSlotId,
   mkCallDef,
+  mkNumberValue,
   optional,
   param,
   type ReadonlyList,
@@ -16,7 +17,15 @@ import { RADIO_DEFAULT_GROUP } from "../../../../core/radio";
 import { getMicroBitContextDevice } from "../context";
 import { MicroBitV2HostActions } from "../tile-ids";
 
-const AnonNumber = param(CoreParameterId.AnonymousNumber, { anonymous: true });
+/** Highest radio group; a group past it wraps by modulus. */
+const RADIO_MAX_GROUP = 255;
+
+const AnonNumber = param(CoreParameterId.AnonymousNumber, {
+  anonymous: true,
+  name: "group",
+  default: mkNumberValue(RADIO_DEFAULT_GROUP),
+  range: { min: 0, max: RADIO_MAX_GROUP, onExceed: "wrap" },
+});
 
 const callDef = mkCallDef(bag(optional(AnonNumber)));
 
