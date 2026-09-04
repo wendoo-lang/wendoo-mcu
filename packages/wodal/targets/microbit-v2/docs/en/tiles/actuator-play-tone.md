@@ -182,3 +182,7 @@ The middle tone is a rest: a pitch of 0 sounds nothing but still takes its
 `tile:tile.actuator->microbit-v2.play-sound`
 `tile:tile.parameter->microbit-v2.duration`
 `tile:tile.parameter->microbit-v2.volume`
+
+```assistant
+A pitch of 0 plays silence for the duration, a rest. One wave-shape word (square / sawtooth / sine / triangle) picks the sound, triangle when none is given. The rule holds until the tone ends: until then a rule under it does not get its turn, and this rule cannot fire again. A tone asked for while a sound is playing is dropped; add "in background" to let the rule carry on, or "immediately" to cut off the sound that is playing.
+```

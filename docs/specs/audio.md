@@ -248,10 +248,10 @@ shared lease-modifier pair:
 
 ### Catalog metadata (assistant, docs, art)
 
-- **`grammarNote`** - the assistant-facing rule sentence the LLM catalog digest reads. It must
-  state what the argument grammar does not: the units and defaults of both params, that the
-  wave shapes default to triangle, and the lease behavior (in `play sound`'s wording). Required
-  text:
+- **Assistant section** - the tile's doc page carries one fenced block whose info string is
+  `assistant`, holding the rule prose the LLM catalog digest reads. It must state what the
+  argument grammar does not: the units and defaults of both params, that the wave shapes
+  default to triangle, and the lease behavior (in `play sound`'s wording). Required text:
 
   > Plays a plain tone: the bare number is the pitch in Hz (default 880; 0 plays silence
   > for the duration, a rest), "duration" is in seconds (default 0.5), "volume" is 0 to 1

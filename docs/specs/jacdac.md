@@ -331,8 +331,8 @@ right form (event tile vs register read) for the job.
   per-register, and per-event descriptions, units, and ranges), and the tile's stance
   semantics (poll over cache, presence-gated, silent no-op while unbound). Docs lead with a
   one-paragraph behavioral summary -- the machine-consumed portion, per the dynamic-tiles
-  assistant surface -- and use grammar notes for rules the grammar cannot state ("fires only
-  while a module fills the role").
+  assistant surface -- and carry an `assistant` section for rules the grammar cannot state
+  ("fires only while a module fills the role").
 - **Library assistant note.** The library ships a short concept note that joins the
   assistant's session context: what roles are, that replacement rebinds automatically, that
   unbound roles read as absent and never error, and when to prefer event tiles over register

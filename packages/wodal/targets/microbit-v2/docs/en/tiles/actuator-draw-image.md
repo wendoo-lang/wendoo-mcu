@@ -17,3 +17,7 @@ fire again. A draw made while the display is busy is dropped; add
 `tile:tile.modifier->microbit-v2.immediately` to take over the display at once,
 or `tile:tile.modifier->microbit-v2.in-background` to let the rule continue
 without waiting. A duration of 0 paints the image and continues at once.
+
+```assistant
+The rule holds until the image has finished showing: until then a rule under it does not get its turn, and this rule cannot fire again. A draw asked for while the display is busy is dropped; add "in background" to let the rule carry on, or "immediately" to cut off what the display is showing.
+```

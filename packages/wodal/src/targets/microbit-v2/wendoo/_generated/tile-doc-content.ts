@@ -41,6 +41,10 @@ request made while the display is busy is dropped; add
 \`tile:tile.modifier->microbit-v2.immediately\` to take over the display at once,
 or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule continue
 without waiting.
+
+\`\`\`assistant
+The rule holds until the text has finished showing: until then a rule under it does not get its turn, and this rule cannot fire again. A show asked for while the display is busy is dropped; add "in background" to let the rule carry on, or "immediately" to cut off what the display is showing.
+\`\`\`
 `,
   "actuator-draw-image": `\`\`\`brain noframe do
 { "tile": "\${tileId}" }
@@ -61,6 +65,10 @@ fire again. A draw made while the display is busy is dropped; add
 \`tile:tile.modifier->microbit-v2.immediately\` to take over the display at once,
 or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule continue
 without waiting. A duration of 0 paints the image and continues at once.
+
+\`\`\`assistant
+The rule holds until the image has finished showing: until then a rule under it does not get its turn, and this rule cannot fire again. A draw asked for while the display is busy is dropped; add "in background" to let the rule carry on, or "immediately" to cut off what the display is showing.
+\`\`\`
 `,
   "actuator-play-sound": `\`\`\`brain noframe do
 { "tile": "\${tileId}" }
@@ -80,6 +88,10 @@ rule cannot fire again. A play made while the speaker is busy is dropped; add
 \`tile:tile.modifier->microbit-v2.immediately\` to take over the speaker at
 once, or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule
 continue without waiting.
+
+\`\`\`assistant
+The rule holds until the sound has finished: until then a rule under it does not get its turn, and this rule cannot fire again. A sound asked for while another is playing is dropped; add "in background" to let the rule carry on, or "immediately" to cut off the sound that is playing.
+\`\`\`
 `,
   "actuator-play-tone": `\`\`\`brain noframe do
 { "tile": "\${tileId}" }
@@ -265,6 +277,10 @@ The middle tone is a rest: a pitch of 0 sounds nothing but still takes its
 \`tile:tile.actuator->microbit-v2.play-sound\`
 \`tile:tile.parameter->microbit-v2.duration\`
 \`tile:tile.parameter->microbit-v2.volume\`
+
+\`\`\`assistant
+A pitch of 0 plays silence for the duration, a rest. One wave-shape word (square / sawtooth / sine / triangle) picks the sound, triangle when none is given. The rule holds until the tone ends: until then a rule under it does not get its turn, and this rule cannot fire again. A tone asked for while a sound is playing is dropped; add "in background" to let the rule carry on, or "immediately" to cut off the sound that is playing.
+\`\`\`
 `,
   "actuator-radio-send": `\`\`\`brain noframe do
 { "tile": "\${tileId}" }

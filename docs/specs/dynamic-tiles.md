@@ -239,8 +239,10 @@ mechanism treats the assistant as a first-class catalog consumer.
   the paragraph between the title heading and the first subheading, so published docs lead with
   a one-paragraph behavioral summary; content below the first subheading addresses human
   readers only.
-- **Grammar notes.** A published tile may carry a one-sentence note for a usage rule its
-  argument grammar cannot state; the note reaches the assistant alongside the grammar.
+- **Assistant section.** A declaration's `docs` prose may carry one fenced block whose info
+  string is `assistant`, holding the usage rules the argument grammar cannot state. It is the
+  long-form channel: it reaches the assistant alongside the grammar, never leaks into the
+  description, and is served only for a tile the session's featuring admits.
 - **Digest scale.** Every offered tile is one line of the assistant's catalog digest, so a
   provider's cardinality weighs directly on the model's context. The argument-space extension
   (see Open questions) is the pressure valve for large-cardinality domains.
