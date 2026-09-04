@@ -19,7 +19,8 @@ when left off). Add one wave shape -- `tile:tile.modifier->microbit-v2.square`,
 `tile:tile.modifier->microbit-v2.sine`, or
 `tile:tile.modifier->microbit-v2.triangle` -- to change the character of the
 tone; with none of them it is a triangle wave. The rule waits until the tone
-ends, and a beep made while the speaker is busy is dropped; add
+ends: until then a rule under it does not get its turn, and this rule cannot
+fire again. A beep made while the speaker is busy is dropped; add
 `tile:tile.modifier->microbit-v2.immediately` to take over the speaker at once,
 or `tile:tile.modifier->microbit-v2.in-background` to let the rule continue
 without waiting.

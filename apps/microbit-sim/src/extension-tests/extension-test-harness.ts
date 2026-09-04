@@ -34,6 +34,9 @@ function extensionDir(relativePath: string): string {
  */
 export const POSITION_IDENTITY = qualifiedClassName(CODAL_POSITION_EXT_COORDINATE, "/index.ts", "Position");
 
+/** Namespace of the host workspace project the harness compiles its test-only workspace tiles into. */
+export const HOST_PROJECT_NAMESPACE = "microbit-extension-tests";
+
 /** The Cutebot chassis library's coordinate; test-only tiles that reach the arbitrator compile into this namespace. */
 export { CUTEBOT_EXT_COORDINATE, YAHBOOM_GAMEPAD_EXT_COORDINATE } from "../services/microbit-extension-coordinates";
 
@@ -165,7 +168,7 @@ export function buildExtensionTestHarness(options: HarnessOptions): ExtensionTes
   const env = createMicroBitV2Environment();
   const mounts: readonly Mount[] = [];
   const compiler = createWorkspaceCompiler({
-    projectNamespace: "microbit-extension-tests",
+    projectNamespace: HOST_PROJECT_NAMESPACE,
     mounts,
     environment: env,
     dependencies: resolved.dependencies,

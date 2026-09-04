@@ -93,7 +93,5 @@ export default {
   isAsync: true,
   metadata: {
     label: "display text",
-    grammarNote:
-      'The rule holds until the text has finished showing: until then a rule under it does not get its turn, and this rule cannot fire again. A show asked for while the display is busy is dropped; add "in background" to let the rule carry on, or "immediately" to cut off what the display is showing.',
   },
 } satisfies CreateHostActuatorOptions;

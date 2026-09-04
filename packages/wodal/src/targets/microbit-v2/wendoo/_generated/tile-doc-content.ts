@@ -35,7 +35,8 @@ Scrolls text across the display.
 Scrolls the text from right to left and ends with a blank display; a single
 character is shown still for a moment instead of scrolling. With no
 \`tile:tile.parameter->microbit-v2.text\` argument it shows the value the WHEN
-side produced, or "hello". The rule waits until the animation finishes, and a
+side produced, or "hello". The rule waits until the animation finishes: until
+then a rule under it does not get its turn, and this rule cannot fire again. A
 request made while the display is busy is dropped; add
 \`tile:tile.modifier->microbit-v2.immediately\` to take over the display at once,
 or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule continue
@@ -55,7 +56,8 @@ Draws each given \`tile:tile.parameter->microbit-v2.image\` in order, holding
 each for \`tile:tile.parameter->microbit-v2.duration\` seconds (default 1
 second); the last image stays on the display. With no image it draws
 \`tile:tile.literal->struct:<Image>->happy\`. The rule waits for the hold to
-finish, and a draw made while the display is busy is dropped; add
+finish: until then a rule under it does not get its turn, and this rule cannot
+fire again. A draw made while the display is busy is dropped; add
 \`tile:tile.modifier->microbit-v2.immediately\` to take over the display at once,
 or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule continue
 without waiting. A duration of 0 paints the image and continues at once.
@@ -73,7 +75,8 @@ Plays a built-in sound on the speaker.
 Plays the given \`tile:tile.parameter->microbit-v2.sound-emoji\`, a built-in
 sound such as \`tile:tile.literal->struct:<SoundEmoji>->twinkle\`. With no sound
 it plays \`tile:tile.literal->struct:<SoundEmoji>->hello\`. The rule waits until
-the sound finishes, and a play made while the speaker is busy is dropped; add
+the sound finishes: until then a rule under it does not get its turn, and this
+rule cannot fire again. A play made while the speaker is busy is dropped; add
 \`tile:tile.modifier->microbit-v2.immediately\` to take over the speaker at
 once, or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule
 continue without waiting.
@@ -99,7 +102,8 @@ when left off). Add one wave shape -- \`tile:tile.modifier->microbit-v2.square\`
 \`tile:tile.modifier->microbit-v2.sine\`, or
 \`tile:tile.modifier->microbit-v2.triangle\` -- to change the character of the
 tone; with none of them it is a triangle wave. The rule waits until the tone
-ends, and a beep made while the speaker is busy is dropped; add
+ends: until then a rule under it does not get its turn, and this rule cannot
+fire again. A beep made while the speaker is busy is dropped; add
 \`tile:tile.modifier->microbit-v2.immediately\` to take over the speaker at once,
 or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule continue
 without waiting.

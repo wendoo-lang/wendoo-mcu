@@ -59,7 +59,7 @@ import { loadBindingToken, saveBindingToken } from "./binding-token-persistence"
 import { flashDiagnosticToEntry, runtimeFaultToEntry } from "./brain-diagnostic-entries";
 import { type AppChrome, appChromeForMode, connectMicrobitFolderSession, isFolderHostMode } from "./folder-host-mode";
 import { microbitDefaultExtensions, microbitEmbeddedExtensions } from "./microbit-embedded-extensions";
-import { microbitLibraryCatalogMoves } from "./microbit-extension-browser";
+import { microbitFeaturedNamespaces, microbitLibraryCatalogMoves } from "./microbit-extension-browser";
 import { MICROBIT_V2_TARGET_COORDINATE } from "./microbit-extension-coordinates";
 import {
   BRAINS_INDEX_KEY,
@@ -270,7 +270,15 @@ export class MicrobitSimEnvironmentStore {
     this.assistant = {
       manifest: assistantToolManifest(adapter),
       activity,
-      workspaces: createEditedBrainWorkspaces({ environment: host.env, adapter, activity }),
+      workspaces: createEditedBrainWorkspaces({
+        environment: host.env,
+        adapter,
+        activity,
+        featuring: () => ({
+          featured: microbitFeaturedNamespaces,
+          ...(host.activeProjectManifest ? { hostNamespace: host.activeProjectManifest.id } : {}),
+        }),
+      }),
       connect: () => createWebSocketConnect(assistantSessionUrl(this._appSettings.assistantServiceUrl))(),
     };
     this.simulator = new MicrobitSimulator(host.env);

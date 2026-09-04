@@ -166,6 +166,12 @@ export const microbitCatalogCoordinateOrder: readonly string[] = microbitLibrary
 );
 
 /**
+ * The namespaces a microbit-sim session features: every coordinate the bundled
+ * catalog lists.
+ */
+export const microbitFeaturedNamespaces: ReadonlySet<string> = new Set(microbitCatalogCoordinateOrder);
+
+/**
  * Build the catalog offers for a microbit-sim project: one offer per bundled
  * catalog entry that is compatible with the project's micro:bit platform stack
  * and not already installed. An entry whose coordinate the project's extensions

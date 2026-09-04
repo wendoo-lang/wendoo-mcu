@@ -1,5 +1,7 @@
 {
   "cmake.sourceDirectory": "${workspaceFolder}/cpp",
   "cmake.useCMakePresets": "always",
-  "C_Cpp.default.compileCommands": "${workspaceFolder}/cpp/build/debug/compile_commands.json"
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/cpp/build/debug/compile_commands.json",
+  "typescript.tsdk": "external/wendoo-lang/packages/core/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
 }

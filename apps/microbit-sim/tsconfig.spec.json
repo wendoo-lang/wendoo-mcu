@@ -10,6 +10,7 @@
   "include": [
     "src/vite-env.d.ts",
     "src/**/*.spec.ts",
+    "src/extension-tests/**/*.ts",
     "../../external/wendoo-lang/packages/docs/src/**/*.tsx",
     "../../external/wendoo-lang/packages/assistant-panel/src/**/*.tsx",
     "../../external/wendoo-lang/packages/ui/src/markdown/**/*.tsx",

@@ -84,7 +84,5 @@ export default {
   isAsync: true,
   metadata: {
     label: "play sound",
-    grammarNote:
-      'The rule holds until the sound has finished: until then a rule under it does not get its turn, and this rule cannot fire again. A sound asked for while another is playing is dropped; add "in background" to let the rule carry on, or "immediately" to cut off the sound that is playing.',
   },
 } satisfies CreateHostActuatorOptions;
