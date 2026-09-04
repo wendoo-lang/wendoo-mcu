@@ -5,7 +5,11 @@ import type {
   ExtensionFetchErrorCode,
   ExtensionUpdateApplication,
 } from "@wendoo/app-host";
-import { parseExtensionReference, validateExtensionCatalogDocument } from "@wendoo/app-host";
+import {
+  buildApprovedCatalogEntryLookup,
+  parseExtensionReference,
+  validateExtensionCatalogDocument,
+} from "@wendoo/app-host";
 import {
   type AppEnvironmentHost,
   buildExtensionCatalog,
@@ -159,6 +163,9 @@ export function microbitCatalogEntryRef(coordinate: string): string {
 
 /** The curated catalog moves the bundled micro:bit catalog declares, keyed by source coordinate. */
 export const microbitLibraryCatalogMoves = microbitLibraryCatalog.moves;
+
+/** Resolves a coordinate to the approved pin the bundled micro:bit catalog's entry for it offers. */
+export const microbitApprovedCatalogEntry = buildApprovedCatalogEntryLookup(microbitLibraryCatalog);
 
 /** The bundled catalog's coordinates in document order; anchors the library browser's stable list order. */
 export const microbitCatalogCoordinateOrder: readonly string[] = microbitLibraryCatalog.entries.map(

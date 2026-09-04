@@ -1,10 +1,10 @@
 {
   "name": "Yahboom Gamepad",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "identity": "wendoo-lang/lib-yahboom-gamepad",
   "description": "Yahboom GHBit gamepad driver for the micro:bit (v2): the thumb-stick direction and continuous position sensors, the colored-button sensor, the received-packet decoder, and the position-to-packet radio encoding.",
   "extensions": {
-    "wendoo-lang/lib-codal-position": "gh:wendoo-lang/lib-codal-position@0.1.4"
+    "wendoo-lang/lib-codal-position": "gh:wendoo-lang/lib-codal-position@0.1.5"
   },
   "files": [
     "protocol.ts",

@@ -4,28 +4,40 @@
     {
       "kind": "library",
       "coordinate": "wendoo-lang/lib-elecfreaks-cutebot",
-      "ref": "gh:wendoo-lang/lib-elecfreaks-cutebot@16d9d4b39ff257168e262db30bb91d87cfc2042d",
+      "ref": "gh:wendoo-lang/lib-elecfreaks-cutebot@16e6dc08480f9455ef0d273a4b9775266933a5bd",
       "name": "Cutebot",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "description": "ELECFREAKS Cutebot chassis driver for the micro:bit (v2): a shared movement arbitrator with drive, turn, pivot, stop, and continuous steer tiles, plus the two-side line-tracking sensor.",
       "targets": {
         "wendoo-lang/lib-microbit-v2": {
           "packageVersion": ">=0.2.0"
         }
-      }
+      },
+      "priors": [
+        {
+          "ref": "gh:wendoo-lang/lib-elecfreaks-cutebot@16d9d4b39ff257168e262db30bb91d87cfc2042d",
+          "version": "0.2.2"
+        }
+      ]
     },
     {
       "kind": "library",
       "coordinate": "wendoo-lang/lib-yahboom-gamepad",
-      "ref": "gh:wendoo-lang/lib-yahboom-gamepad@4bb75c9f49b8c6f7f9d71b7493fc290cbb344610",
+      "ref": "gh:wendoo-lang/lib-yahboom-gamepad@4835d57f60bcc91e0c13f14d8a5df9ea9185bdcd",
       "name": "Yahboom Gamepad",
-      "version": "0.2.0",
+      "version": "0.2.2",
       "description": "Yahboom GHBit gamepad driver for the micro:bit (v2): the thumb-stick direction and continuous position sensors, the colored-button sensor, the received-packet decoder, and the position-to-packet radio encoding.",
       "targets": {
         "wendoo-lang/lib-microbit-v2": {
           "packageVersion": ">=0.2.0"
         }
-      }
+      },
+      "priors": [
+        {
+          "ref": "gh:wendoo-lang/lib-yahboom-gamepad@4bb75c9f49b8c6f7f9d71b7493fc290cbb344610",
+          "version": "0.2.0"
+        }
+      ]
     }
   ],
   "moves": {
@@ -33,10 +45,10 @@
       "ref": "gh:wendoo-lang/lib-codal-position@10b8d2cb4eb9954f26d9f267e0066d7274bcf228"
     },
     "wendoo-lang/lib-microbit-cutebot": {
-      "ref": "gh:wendoo-lang/lib-elecfreaks-cutebot@16d9d4b39ff257168e262db30bb91d87cfc2042d"
+      "ref": "gh:wendoo-lang/lib-elecfreaks-cutebot@16e6dc08480f9455ef0d273a4b9775266933a5bd"
     },
     "wendoo-lang/lib-microbit-yahboom-gamepad": {
-      "ref": "gh:wendoo-lang/lib-yahboom-gamepad@4bb75c9f49b8c6f7f9d71b7493fc290cbb344610"
+      "ref": "gh:wendoo-lang/lib-yahboom-gamepad@4835d57f60bcc91e0c13f14d8a5df9ea9185bdcd"
     }
   }
 }

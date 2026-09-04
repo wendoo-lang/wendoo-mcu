@@ -59,7 +59,11 @@ import { loadBindingToken, saveBindingToken } from "./binding-token-persistence"
 import { flashDiagnosticToEntry, runtimeFaultToEntry } from "./brain-diagnostic-entries";
 import { type AppChrome, appChromeForMode, connectMicrobitFolderSession, isFolderHostMode } from "./folder-host-mode";
 import { microbitDefaultExtensions, microbitEmbeddedExtensions } from "./microbit-embedded-extensions";
-import { microbitFeaturedNamespaces, microbitLibraryCatalogMoves } from "./microbit-extension-browser";
+import {
+  microbitApprovedCatalogEntry,
+  microbitFeaturedNamespaces,
+  microbitLibraryCatalogMoves,
+} from "./microbit-extension-browser";
 import { MICROBIT_V2_TARGET_COORDINATE } from "./microbit-extension-coordinates";
 import {
   BRAINS_INDEX_KEY,
@@ -346,6 +350,7 @@ export class MicrobitSimEnvironmentStore {
       embeddedExtensions: microbitEmbeddedExtensions,
       extensionFetchTransport: createJsDelivrExtensionTransport(),
       catalogMoves: microbitLibraryCatalogMoves,
+      approvedCatalogEntry: microbitApprovedCatalogEntry,
       ...(folderSession ? {} : { bridgeUrl: appSettings.vscodeBridgeUrl }),
       loadBindingToken,
       saveBindingToken,

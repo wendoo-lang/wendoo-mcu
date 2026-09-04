@@ -6,8 +6,8 @@
     "description": "",
     "extensions": {
       "wendoo-lang/trg-microbit-v2": "embedded:wendoo-lang/trg-microbit-v2",
-      "wendoo-lang/lib-elecfreaks-cutebot": "gh:wendoo-lang/lib-elecfreaks-cutebot@16d9d4b39ff257168e262db30bb91d87cfc2042d",
-      "wendoo-lang/lib-yahboom-gamepad": "gh:wendoo-lang/lib-yahboom-gamepad@4bb75c9f49b8c6f7f9d71b7493fc290cbb344610"
+      "wendoo-lang/lib-elecfreaks-cutebot": "gh:wendoo-lang/lib-elecfreaks-cutebot@16e6dc08480f9455ef0d273a4b9775266933a5bd",
+      "wendoo-lang/lib-yahboom-gamepad": "gh:wendoo-lang/lib-yahboom-gamepad@4835d57f60bcc91e0c13f14d8a5df9ea9185bdcd"
     },
     "brains": {
       "gkIOi3pfMfDsy6yC": {

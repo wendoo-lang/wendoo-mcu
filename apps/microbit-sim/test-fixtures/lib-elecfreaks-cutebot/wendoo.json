@@ -1,10 +1,10 @@
 {
   "name": "Cutebot",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "identity": "wendoo-lang/lib-elecfreaks-cutebot",
   "description": "ELECFREAKS Cutebot chassis driver for the micro:bit (v2): a shared movement arbitrator with drive, turn, pivot, stop, and continuous steer tiles, plus the two-side line-tracking sensor.",
   "extensions": {
-    "wendoo-lang/lib-codal-position": "gh:wendoo-lang/lib-codal-position@0.1.4"
+    "wendoo-lang/lib-codal-position": "gh:wendoo-lang/lib-codal-position@0.1.5"
   },
   "files": [
     "movement.ts",

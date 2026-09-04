@@ -77,6 +77,36 @@ describe("microbit library catalog document", () => {
     }
   });
 
+  test("each entry lists the exact earlier approved version it accumulated", () => {
+    const result = validateExtensionCatalogDocument(microbitLibraryCatalogDocument);
+    assert.ok(result.ok);
+    const byCoordinate = new Map(result.document.entries.map((entry) => [entry.coordinate, entry]));
+    for (const [coordinate, priors] of [
+      [
+        CUTEBOT_EXT_COORDINATE,
+        [
+          {
+            ref: `gh:${CUTEBOT_EXT_COORDINATE}@16d9d4b39ff257168e262db30bb91d87cfc2042d`,
+            version: "0.2.2",
+          },
+        ],
+      ],
+      [
+        YAHBOOM_GAMEPAD_EXT_COORDINATE,
+        [
+          {
+            ref: `gh:${YAHBOOM_GAMEPAD_EXT_COORDINATE}@4bb75c9f49b8c6f7f9d71b7493fc290cbb344610`,
+            version: "0.2.0",
+          },
+        ],
+      ],
+    ] as const) {
+      const entry = byCoordinate.get(coordinate);
+      assert.ok(entry, `the catalog lists ${coordinate}`);
+      assert.deepEqual(entry.priors, priors);
+    }
+  });
+
   test("each entry's compatibility targets are curator-authored against the stdlib layer", () => {
     const result = validateExtensionCatalogDocument(microbitLibraryCatalogDocument);
     assert.ok(result.ok);

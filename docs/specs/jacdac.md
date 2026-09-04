@@ -16,7 +16,7 @@ Jacdac spans three layers with distinct owners:
 
 - **The bus-core primitive** (`ctx.microbit.jacdac`, platform-owned): the wire machinery -- device
   discovery, a register cache, event delivery, command transmit. Small, eternal, per-target.
-- **The jacdac extension library** (user-imported, `docs/specs/extensions.md`): a small
+- **The jacdac library** (user-imported, `external/wendoo-lang/docs/specs/libraries.md`): a small
   **handler** set (a generic register read/write pair covering tag-shaped registers on every
   service class, plus class-specific handlers for events and commands), a **host-invoked
   `TileProvider`** that derives per-role tiles from the project's role table (fed by the bus's
