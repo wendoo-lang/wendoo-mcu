@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import type { ExtensionCatalogMoveEntry } from "@wendoo/app-host";
+import type { ExtensionCatalogDocumentEntry, ExtensionCatalogMoveEntry } from "@wendoo/app-host";
 import { CATALOG_ENTRY_KIND_EXTENSION, validateExtensionCatalogDocument } from "@wendoo/app-host";
 import type { EmbeddedExtension, FetchedExtensionContentMap } from "@wendoo/bridge-app";
 import { ExtensionActionResultCode } from "@wendoo/bridge-app";
 import {
   buildMicrobitCatalogOffers,
   buildMicrobitExtensionEntries,
+  buildMicrobitLibraryShelf,
   type ExtensionProjectPersistence,
   loadMicrobitLibraryCatalog,
   uninstallMicrobitExtension,
@@ -29,6 +30,15 @@ const POSITION = "wendoo-lang/lib-codal-position";
 /** The retired embedded coordinates the catalog moves migrate away from. */
 const RETIRED_CUTEBOT = "wendoo-lang/lib-microbit-cutebot";
 const RETIRED_YAHBOOM = "wendoo-lang/lib-microbit-yahboom-gamepad";
+
+/** The bundled catalog's entry for `coordinate`, as the validated document carries it. */
+function catalogEntryFor(coordinate: string): ExtensionCatalogDocumentEntry {
+  const result = validateExtensionCatalogDocument(microbitLibraryCatalogDocument);
+  assert.ok(result.ok);
+  const entry = result.document.entries.find((candidate) => candidate.coordinate === coordinate);
+  assert.ok(entry, `the catalog lists ${coordinate}`);
+  return entry;
+}
 
 /** Read a published library fixture's manifest from its snapshot directory. */
 function publishedManifest(dir: string): { name: string; version: string; description: string } {
@@ -204,6 +214,51 @@ describe("buildMicrobitCatalogOffers -- compatibility-filtered against the micro
     const coordinates = offers.map((offer) => offer.coordinate);
     assert.equal(coordinates.includes(RETIRED_CUTEBOT), false);
     assert.equal(coordinates.includes(RETIRED_YAHBOOM), false);
+  });
+
+  test("the shelf lists the catalog's libraries for a fresh project, none of them installed", () => {
+    const shelf = buildMicrobitLibraryShelf(project, embedRecord);
+
+    assert.deepEqual(
+      shelf.map((entry) => entry.coordinate).sort(),
+      [CUTEBOT_EXT_COORDINATE, YAHBOOM_GAMEPAD_EXT_COORDINATE].sort()
+    );
+    assert.deepEqual(
+      shelf.map((entry) => entry.installed),
+      [false, false]
+    );
+    for (const entry of shelf) {
+      assert.ok(entry.description.length > 0, `${entry.coordinate} carries what it adds`);
+    }
+  });
+
+  test("installing a library keeps it on the shelf and flips it to installed", () => {
+    const shelf = buildMicrobitLibraryShelf(
+      { ...project, [CUTEBOT_EXT_COORDINATE]: catalogEntryFor(CUTEBOT_EXT_COORDINATE).ref },
+      embedRecord
+    );
+
+    assert.deepEqual(
+      shelf.map((entry) => [entry.coordinate, entry.installed]).sort(),
+      [
+        [CUTEBOT_EXT_COORDINATE, true],
+        [YAHBOOM_GAMEPAD_EXT_COORDINATE, false],
+      ].sort()
+    );
+  });
+
+  test("shelves the version each entry offers, never an earlier approved one", () => {
+    const shelf = buildMicrobitLibraryShelf(project, embedRecord);
+
+    for (const entry of shelf) {
+      const listed = catalogEntryFor(entry.coordinate);
+      assert.equal(entry.version, listed.version);
+      assert.ok(listed.priors !== undefined && listed.priors.length > 0, `${entry.coordinate} has earlier versions`);
+      assert.equal(
+        listed.priors.some((prior) => prior.version === entry.version),
+        false
+      );
+    }
   });
 });
 

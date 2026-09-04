@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ExtensionAddInputErrorCode, ExtensionFetchErrorCode, resolveExtensionAddInput } from "@wendoo/app-host";
-import type { EmbeddedExtension, ExtensionCatalogEntry } from "@wendoo/bridge-app";
+import type { EmbeddedExtension, ExtensionCatalogEntry, LibraryOfferToasts } from "@wendoo/bridge-app";
 import { ExtensionActionResultCode, resolveProjectExtensions } from "@wendoo/bridge-app";
 import {
+  addMicrobitLibrary,
   buildMicrobitExtensionEntries,
   checkMicrobitExtensionUpdates,
   type ExtensionProjectPersistence,
@@ -11,6 +12,7 @@ import {
   installMicrobitExtension,
   installMicrobitExtensionReference,
   installMicrobitReference,
+  type LibraryOfferInstallHost,
   microbitLibraryCatalog,
   microbitLibraryDisplayName,
   toExtensionBrowserEntry,
@@ -457,5 +459,52 @@ describe("microbitLibraryDisplayName", () => {
   test("falls back to the coordinate when nothing names the library", () => {
     const name = microbitLibraryDisplayName([], "example-org/unknown-lib");
     assert.equal(name, "example-org/unknown-lib");
+  });
+});
+
+describe("addMicrobitLibrary -- an offer the assistant made, added through the app's own install", () => {
+  /** The first library the bundled catalog shelves, which every offer here names. */
+  const shelved = microbitLibraryCatalog.entries[0];
+
+  /** An install host over the real normalization surface, naming nothing installed yet. */
+  function offerHost(): LibraryOfferInstallHost & { patches: Array<Record<string, string> | undefined> } {
+    return { ...referenceInstallSurface(), installedLibraries: [] };
+  }
+
+  /** A toast surface recording the kind of every outcome presented through it. */
+  function recordingToasts(): { toasts: LibraryOfferToasts; kinds: string[] } {
+    const kinds: string[] = [];
+    return {
+      kinds,
+      toasts: {
+        failed: () => kinds.push("failed"),
+        confirmed: () => kinds.push("confirmed"),
+        worsened: () => kinds.push("worsened"),
+      },
+    };
+  }
+
+  test("installs the reference the bundled catalog approves, through the transaction the browser uses", async () => {
+    assert.ok(shelved, "the bundled catalog shelves at least one library");
+    const host = offerHost();
+    const { toasts, kinds } = recordingToasts();
+
+    const held = await addMicrobitLibrary(host, project, embedRecord, shelved.coordinate, toasts);
+
+    assert.equal(held, true);
+    assert.equal(host.patches.length, 1);
+    assert.equal(host.patches[0]?.[shelved.coordinate], shelved.ref);
+    assert.deepEqual(kinds, ["confirmed"]);
+  });
+
+  test("refuses a coordinate the bundled catalog shelves nothing for, persisting nothing", async () => {
+    const host = offerHost();
+    const { toasts, kinds } = recordingToasts();
+
+    const held = await addMicrobitLibrary(host, project, embedRecord, "example-org/unshelved-lib", toasts);
+
+    assert.equal(held, false);
+    assert.deepEqual(host.patches, []);
+    assert.deepEqual(kinds, ["failed"]);
   });
 });

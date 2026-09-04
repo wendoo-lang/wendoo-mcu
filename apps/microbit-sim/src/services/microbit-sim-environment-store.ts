@@ -58,8 +58,11 @@ import { type AppSettings, loadAppSettings, normalizeAppSettings, persistAppSett
 import { loadBindingToken, saveBindingToken } from "./binding-token-persistence";
 import { flashDiagnosticToEntry, runtimeFaultToEntry } from "./brain-diagnostic-entries";
 import { type AppChrome, appChromeForMode, connectMicrobitFolderSession, isFolderHostMode } from "./folder-host-mode";
+import { microbitLibraryOfferToasts } from "./library-offer-toasts";
 import { microbitDefaultExtensions, microbitEmbeddedExtensions } from "./microbit-embedded-extensions";
 import {
+  addMicrobitLibrary,
+  buildMicrobitLibraryShelf,
   microbitApprovedCatalogEntry,
   microbitFeaturedNamespaces,
   microbitLibraryCatalogMoves,
@@ -282,6 +285,16 @@ export class MicrobitSimEnvironmentStore {
           featured: microbitFeaturedNamespaces,
           ...(host.activeProjectManifest ? { hostNamespace: host.activeProjectManifest.id } : {}),
         }),
+        libraryShelf: () =>
+          buildMicrobitLibraryShelf(host.activeProjectManifest?.extensions, microbitEmbeddedExtensions),
+        installLibrary: (coordinate) =>
+          addMicrobitLibrary(
+            host,
+            host.activeProjectManifest?.extensions,
+            microbitEmbeddedExtensions,
+            coordinate,
+            microbitLibraryOfferToasts
+          ),
       }),
       connect: () => createWebSocketConnect(assistantSessionUrl(this._appSettings.assistantServiceUrl))(),
     };
