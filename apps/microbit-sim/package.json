@@ -22,7 +22,7 @@
     "check:only": "biome check ./src",
     "check": "biome check ./src --write",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.spec.json && tsc --noEmit -p test-fixtures/tsconfig.json",
-    "pretest": "npm run build:headless",
+    "pretest": "npm run generate:docs && npm run build:headless",
     "test": "tsx --tsconfig tsconfig.spec.json --test $(find src -name '*.spec.ts')",
     "release:patch": "node ../../external/wendoo-lang/scripts/release.js patch --skip-deps",
     "release:minor": "node ../../external/wendoo-lang/scripts/release.js minor --skip-deps",

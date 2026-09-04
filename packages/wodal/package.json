@@ -100,7 +100,7 @@
     "pretypecheck": "npm run build:deps",
     "typecheck": "tsc --noEmit -p tsconfig.build.json && tsc --noEmit -p tsconfig.spec.json && tsc --noEmit -p scripts/tsconfig.json && tsc --noEmit -p lib/tsconfig.json && tsc --noEmit -p targets/microbit-v2/lib/tsconfig.json",
     "format": "biome format ./src --write",
-    "pretest": "npm run build:deps && npm run build:prod",
+    "pretest": "npm run build:deps && npm run generate:tile-docs && npm run build:prod",
     "test": "tsx --tsconfig tsconfig.spec.json --test $(find src -name '*.spec.ts')",
     "release:patch": "node ../../external/wendoo-lang/scripts/release.js patch",
     "release:minor": "node ../../external/wendoo-lang/scripts/release.js minor",
