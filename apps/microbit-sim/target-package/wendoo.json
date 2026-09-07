@@ -1,6 +1,6 @@
 {
   "name": "micro:bit v2",
-  "version": "0.9.9",
+  "version": "0.9.11",
   "identity": "wendoo-lang/trg-microbit-v2",
   "description": "Program the BBC micro:bit (v2) with Wendoo.",
   "targets": {
@@ -16,6 +16,7 @@
       "app/assets/brain/icons/actuator-display-text.svg",
       "app/assets/brain/icons/actuator-draw-image.svg",
       "app/assets/brain/icons/actuator-play-sound.svg",
+      "app/assets/brain/icons/actuator-play-tone.svg",
       "app/assets/brain/icons/actuator-radio-send.svg",
       "app/assets/brain/icons/actuator-set-radio-group.svg",
       "app/assets/brain/icons/actuator-switch-page.svg",
@@ -35,8 +36,10 @@
       "app/assets/brain/icons/image-happy.svg",
       "app/assets/brain/icons/image-heart.svg",
       "app/assets/brain/icons/image-sad.svg",
+      "app/assets/brain/icons/image.svg",
       "app/assets/brain/icons/less_than.svg",
       "app/assets/brain/icons/less_than_or_equal_to.svg",
+      "app/assets/brain/icons/lit-factory-image.svg",
       "app/assets/brain/icons/lit-factory-number.svg",
       "app/assets/brain/icons/lit-factory-text.svg",
       "app/assets/brain/icons/literal-false.svg",
@@ -55,11 +58,15 @@
       "app/assets/brain/icons/modifier-long-click.svg",
       "app/assets/brain/icons/modifier-pressed.svg",
       "app/assets/brain/icons/modifier-released.svg",
+      "app/assets/brain/icons/modifier-sawtooth.svg",
       "app/assets/brain/icons/modifier-shake.svg",
+      "app/assets/brain/icons/modifier-sine.svg",
+      "app/assets/brain/icons/modifier-square.svg",
       "app/assets/brain/icons/modifier-tilt-down.svg",
       "app/assets/brain/icons/modifier-tilt-left.svg",
       "app/assets/brain/icons/modifier-tilt-right.svg",
       "app/assets/brain/icons/modifier-tilt-up.svg",
+      "app/assets/brain/icons/modifier-triangle.svg",
       "app/assets/brain/icons/multiply.svg",
       "app/assets/brain/icons/negative.svg",
       "app/assets/brain/icons/not.svg",
@@ -79,6 +86,7 @@
       "app/assets/brain/icons/parameter-image.svg",
       "app/assets/brain/icons/parameter-sound.svg",
       "app/assets/brain/icons/parameter-text.svg",
+      "app/assets/brain/icons/parameter-volume.svg",
       "app/assets/brain/icons/parameter-x.svg",
       "app/assets/brain/icons/parameter-y.svg",
       "app/assets/brain/icons/plus.svg",
@@ -90,7 +98,6 @@
       "app/assets/brain/icons/sensor-gesture.svg",
       "app/assets/brain/icons/sensor-light-level.svg",
       "app/assets/brain/icons/sensor-on-page-entered.svg",
-      "app/assets/brain/icons/sensor-otherwise.svg",
       "app/assets/brain/icons/sensor-radio-receive-buffer.svg",
       "app/assets/brain/icons/sensor-radio-receive-number.svg",
       "app/assets/brain/icons/sensor-radio-receive-string.svg",
@@ -103,14 +110,15 @@
       "app/assets/brain/icons/var-factory-number.svg",
       "app/assets/brain/icons/var-factory-text.svg",
       "app/assets/fonts/latinmodern-math.woff2",
-      "app/assets/index-BujPaV19.js",
-      "app/assets/index-t4IFnhG_.css",
+      "app/assets/index-C3CdQjLQ.css",
+      "app/assets/index-kHSQtEY_.js",
       "app/index.html",
-      "app/microbit-v2.svg"
+      "app/microbit-v2.svg",
+      "app/og-image.png"
     ]
   },
   "rehearsalAdapter": {
     "path": "rehearsal/adapter.js"
   },
-  "buildVersion": "0.9.9"
+  "buildVersion": "0.9.11"
 }
