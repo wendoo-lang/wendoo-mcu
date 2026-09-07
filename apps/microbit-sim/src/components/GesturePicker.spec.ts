@@ -13,7 +13,7 @@ function instanceWith(microbit: MicroBit, gestureInjector: GestureInjector): Sim
 
 /** Renders the picker and returns the numeric gesture code of the selected option. */
 function renderedSelectValue(instance: SimulatorInstance): string {
-  const markup = renderToStaticMarkup(createElement(GesturePicker, { instance }));
+  const markup = renderToStaticMarkup(createElement(GesturePicker, { instance, onSelected: () => {} }));
   assert.match(markup, /data-testid="gesture-select"/, "expected a gesture select");
   const match = markup.match(/<option value="(-?\d+)" selected/);
   assert.ok(match, "expected exactly one selected gesture option");

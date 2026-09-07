@@ -38,6 +38,7 @@ export function brainSelectStateClass(assigned: boolean, hasErrors: boolean): st
 export function InstanceCard({ instance, label, brains }: InstanceCardProps) {
   const store = useMicrobitSimEnvironment();
   const [editingBrain, setEditingBrain] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   // Re-render when a brain's diagnostics change (a broken tile fixed, a build failing)
   // so the selector's error color tracks the same signal as the brain-list badge.
   useSyncExternalStore(store.subscribeToBrainDiagnostics, store.getBrainDiagnosticsRevision);
@@ -87,7 +88,7 @@ export function InstanceCard({ instance, label, brains }: InstanceCardProps) {
           >
             <Pencil className="h-4 w-4" />
           </button>
-          <Popover>
+          <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
@@ -102,7 +103,7 @@ export function InstanceCard({ instance, label, brains }: InstanceCardProps) {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-2">
                   <p className="text-xs font-semibold text-muted-foreground">Inputs</p>
-                  <GesturePicker instance={instance} />
+                  <GesturePicker instance={instance} onSelected={() => setActionsOpen(false)} />
                   <LightLevelSlider instance={instance} />
                   <TemperatureSlider instance={instance} />
                 </div>
@@ -113,7 +114,10 @@ export function InstanceCard({ instance, label, brains }: InstanceCardProps) {
                     data-testid="instance-reset"
                     disabled={!assigned}
                     className="rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
-                    onClick={() => void store.resetInstance(instance.id)}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      void store.resetInstance(instance.id);
+                    }}
                   >
                     Reset Device
                   </button>

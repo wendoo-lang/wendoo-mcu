@@ -18,9 +18,10 @@ const GESTURE_OPTIONS: readonly { code: AccelerometerGesture; label: string }[] 
 /**
  * Per-device gesture picker. Selecting a gesture drives the instance's gesture
  * injector, which feeds the real wodal detector. Postures hold until changed;
- * shake and freefall play once and reset the picker back to `none`.
+ * shake and freefall play once and reset the picker back to `none`. Every
+ * selection also fires `onSelected`, after the injector has taken the gesture.
  */
-export function GesturePicker({ instance }: { instance: SimulatorInstance }) {
+export function GesturePicker({ instance, onSelected }: { instance: SimulatorInstance; onSelected: () => void }) {
   // Seed from the injector so a remount (reopening the Popover) recovers a held posture.
   const [selected, setSelected] = useState<AccelerometerGesture>(() => instance.gestureInjector.currentGesture());
 
@@ -32,6 +33,7 @@ export function GesturePicker({ instance }: { instance: SimulatorInstance }) {
   const onSelect = (code: AccelerometerGesture) => {
     setSelected(code);
     instance.gestureInjector.select(code);
+    onSelected();
   };
 
   return (

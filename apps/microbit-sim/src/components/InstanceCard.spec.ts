@@ -92,3 +92,20 @@ describe("the brain selector reflects only error status and updates live", () =>
     );
   });
 });
+
+describe("the actions popover closes when a gesture is picked or the device is reset", () => {
+  const source = instanceCardSource();
+
+  test("the popover is controlled by the card's open state", () => {
+    assert.match(source, /<Popover open=\{actionsOpen\} onOpenChange=\{setActionsOpen\}>/);
+  });
+
+  test("the gesture picker's selection callback clears that open state", () => {
+    assert.match(source, /<GesturePicker instance=\{instance\} onSelected=\{\(\) => setActionsOpen\(false\)\} \/>/);
+  });
+
+  test("the reset control clears that open state before resetting", () => {
+    const block = buttonBlock(source, "instance-reset");
+    assert.match(block, /setActionsOpen\(false\);\s*void store\.resetInstance\(instance\.id\)/);
+  });
+});
