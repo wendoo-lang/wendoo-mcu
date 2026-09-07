@@ -21,7 +21,7 @@ observable bytecode semantics byte-for-byte.
 
 ## Demo
 
-- [Code a BBC micro:bit](https://microbit.wendoo-lang.org) -- build and test
+- [Code a BBC micro:bit](https://microbit.playwendoo.com) -- build and test
   brains in the browser, then flash the same brain to a physical micro:bit over WebUSB.
 
 ## Two VMs, one contract

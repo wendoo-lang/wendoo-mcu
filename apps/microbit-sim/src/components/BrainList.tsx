@@ -242,7 +242,7 @@ export function BrainList() {
                 data-testid="connect-microbit-button"
                 onClick={handleConnect}
               >
-                <Usb />
+                <Usb className="rotate-45" />
                 Connect micro:bit
               </Button>
             ))}

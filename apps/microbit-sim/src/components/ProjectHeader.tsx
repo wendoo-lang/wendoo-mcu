@@ -52,6 +52,7 @@ import { NewProjectDialog } from "./NewProjectDialog";
 import { ProjectPickerDialog } from "./ProjectPickerDialog";
 import { SettingsDialog } from "./SettingsDialog";
 import { UninstallImpactMessage } from "./UninstallImpactMessage";
+import { WendooLogotype } from "./WendooLogo";
 
 type OpenDialog = "none" | "new" | "open" | "settings" | "extensions";
 
@@ -294,8 +295,13 @@ export function ProjectHeader() {
         className="h-0.75 bg-linear-to-r from-(--strip-blue) via-(--strip-green) to-(--strip-teal)"
       />
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-y-2 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-2">
-          <h1 className="text-base font-bold">Wendoo / micro:bit</h1>
+        <div className="flex items-baseline gap-2">
+          <h1 className="flex items-baseline gap-2 text-base font-bold">
+            <span className="sr-only">Wendoo</span>
+            <WendooLogotype className="h-5 w-auto translate-y-[10.5%]" />
+            <span aria-hidden="true">/</span>
+            <span>micro:bit</span>
+          </h1>
           <span className="text-sm text-muted-foreground">/</span>
           <InlineRename value={projectName} ariaLabel="project name" onRename={(name) => store.renameProject(name)} />
         </div>

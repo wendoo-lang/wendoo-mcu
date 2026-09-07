@@ -6,7 +6,7 @@ import { embeddedExtensions } from "./embedded-extensions.mjs";
 
 export default defineConfig({
   // Absolute base for the standalone web build (`npm run build`), matching
-  // apps/ecosim: it deploys to the S3 bucket root at microbit.wendoo-lang.org,
+  // apps/ecosim: it deploys to the S3 bucket root at microbit.playwendoo.com,
   // where a relative base breaks a hard-loaded deep route -- its assets resolve
   // against the route path, so a load of /docs/x/y requests /docs/x/assets/...
   // and misses. The portable target-package build (`npm run package`) overrides
