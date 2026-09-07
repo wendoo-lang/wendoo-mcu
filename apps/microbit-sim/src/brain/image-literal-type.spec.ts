@@ -15,11 +15,18 @@ const kHeartDigits = ["0f0f0", "fffff", "fffff", "0fff0", "00f00"].join("");
 /** A drawn grid using every brightness level, so a round trip cannot hide one. */
 const kRampDigits = ["0123f", "6789a", "bcdef", "01234", "56789"].join("");
 
-/** The height, in CSS pixels, a placed tile's reserved label line leaves the drawing. */
-const kPreviewHeightBudget = 54;
+/**
+ * The height, in CSS pixels, a placed tile's value box stands at: the minimum
+ * every value tile reserves, drawing and text alike. A drawing taller than what
+ * the frame leaves inside it is clipped there.
+ */
+const kValueBoxHeight = 64;
 
-/** The width, in CSS pixels, a placed tile's value box crops a drawing at. */
-const kPreviewWidthBudget = 90;
+/** Height the value frame takes from what it carries: a 3px border plus 4px of padding per side. */
+const kValueFrameHeightInset = 2 * (3 + 4);
+
+/** The height, in CSS pixels, the framed value box leaves the drawing. */
+const kPreviewHeightBudget = kValueBoxHeight - kValueFrameHeightInset;
 
 /** The input state a grid's digits travel in. */
 function stateOf(digits: string): Record<string, string> {
@@ -103,6 +110,17 @@ function stylePx(element: string, property: string): number {
   const match = element.match(new RegExp(`(?:^|[";])${property}:(\\d+(?:\\.\\d+)?)px`));
   assert.ok(match, `expected ${property} in ${element}`);
   return Number.parseFloat(match[1]);
+}
+
+/** The blur and spread, in CSS pixels, and the alpha the `box-shadow` of `element` carries. */
+function glowOf(element: string): { blur: number; spread: number; alpha: number } {
+  const match = element.match(/box-shadow:0 0 ([\d.]+)px ([\d.]+)px rgba\(239, 68, 68, ([\d.]+)\)/);
+  assert.ok(match, `expected a glow in ${element}`);
+  return {
+    blur: Number.parseFloat(match[1]),
+    spread: Number.parseFloat(match[2]),
+    alpha: Number.parseFloat(match[3]),
+  };
 }
 
 /** The brightness each LED of a rendered preview carries. */
@@ -218,21 +236,29 @@ describe("the LEDs an image literal is drawn with", () => {
   });
 
   test("glow only where they are lit, at a halo scaled to the brightness", () => {
+    // The ramp's first row runs level 0, 1, 2, 3, f.
     const leds = previewLeds(renderedValue(imageLiteralType.parseValue(stateOf(kRampDigits))));
+    const dim = glowOf(leds[1]);
+    const full = glowOf(leds[4]);
 
     assert.doesNotMatch(leds[0], /box-shadow/);
-    assert.match(leds[4], /box-shadow:0 0 6\.00px 1\.50px rgba\(239, 68, 68, 0\.500\)/);
-    assert.match(leds[1], /box-shadow:0 0 0\.40px 1\.00px rgba\(239, 68, 68, 0\.033\)/);
+    assert.ok(dim.blur > 0, `expected a positive dim blur, got ${dim.blur}`);
+    assert.ok(dim.alpha > 0, `expected a positive dim alpha, got ${dim.alpha}`);
+    assert.ok(full.blur > dim.blur, `blur must rise with brightness: ${full.blur} vs ${dim.blur}`);
+    assert.ok(full.alpha > dim.alpha, `alpha must rise with brightness: ${full.alpha} vs ${dim.alpha}`);
+    assert.ok(full.spread >= dim.spread, `spread must not fall with brightness: ${full.spread} vs ${dim.spread}`);
   });
 
   test("stand taller than they are wide, as the device's own do", () => {
     const previewLed = previewLeds(renderedValue(imageLiteralType.parseValue(stateOf(kHeartDigits))))[0];
     const editorLed = [...renderedFields(stateOf(kHeartDigits)).matchAll(/<span style="[^"]*"><\/span>/g)][0][0];
 
-    assert.equal(stylePx(previewLed, "width"), 5);
-    assert.equal(stylePx(previewLed, "height"), 7);
-    assert.equal(stylePx(editorLed, "width"), 20);
-    assert.equal(stylePx(editorLed, "height"), 30);
+    for (const led of [previewLed, editorLed]) {
+      assert.ok(
+        stylePx(led, "height") > stylePx(led, "width"),
+        `expected a portrait LED, got ${stylePx(led, "width")}x${stylePx(led, "height")}`
+      );
+    }
   });
 
   test("sit in tap targets the grid editor sizes for a fingertip", () => {
@@ -246,25 +272,48 @@ describe("the LEDs an image literal is drawn with", () => {
 });
 
 describe("the in-tile preview", () => {
-  test("fits the height a placed tile reserves for it, and the width it crops at", () => {
+  test("stands inside the height the framed value box leaves it, with room to spare", () => {
     const markup = renderedValue(imageLiteralType.parseValue(stateOf(kHeartDigits)));
     const wells = previewWells(markup);
     const container = previewContainer(markup);
 
     assert.equal(wells.length, 25);
-    const wellWidth = stylePx(wells[0], "width");
-    const wellHeight = stylePx(wells[0], "height");
     const gap = stylePx(container, "gap");
     const padding = stylePx(container, "padding");
+    const height = 5 * stylePx(wells[0], "height") + 4 * gap + 2 * padding;
 
-    assert.ok(
-      5 * wellHeight + 4 * gap + 2 * padding <= kPreviewHeightBudget,
-      `preview stands ${5 * wellHeight + 4 * gap + 2 * padding}px tall`
+    assert.ok(height < kPreviewHeightBudget, `preview stands ${height}px tall, over ${kPreviewHeightBudget}px`);
+  });
+
+  test("floats its matrix on the display's own plate, inset from the frame around it", () => {
+    const markup = renderedValue(imageLiteralType.parseValue(stateOf(kHeartDigits)));
+    const container = previewContainer(markup);
+
+    assert.match(container, /class="[^"]*bg-panel/);
+    assert.ok(stylePx(container, "padding") > 0, "the matrix stands inset from the plate's own edge");
+  });
+
+  test("stands square and at one size, whatever the image drawn on it", () => {
+    const [heart, ramp] = [kHeartDigits, kRampDigits].map((digits) =>
+      renderedValue(imageLiteralType.parseValue(stateOf(digits)))
     );
-    assert.ok(
-      5 * wellWidth + 4 * gap + 2 * padding <= kPreviewWidthBudget,
-      `preview stands ${5 * wellWidth + 4 * gap + 2 * padding}px wide`
-    );
+
+    for (const markup of [heart, ramp]) {
+      const well = previewWells(markup)[0];
+      assert.equal(stylePx(well, "width"), stylePx(well, "height"));
+    }
+    assert.equal(stylePx(previewWells(heart)[0], "width"), stylePx(previewWells(ramp)[0], "width"));
+    assert.equal(stylePx(previewContainer(heart), "gap"), stylePx(previewContainer(ramp), "gap"));
+    assert.equal(stylePx(previewContainer(heart), "padding"), stylePx(previewContainer(ramp), "padding"));
+  });
+
+  test("holds each LED whole inside its own well", () => {
+    const markup = renderedValue(imageLiteralType.parseValue(stateOf(kHeartDigits)));
+    const well = previewWells(markup)[0];
+    const led = previewLeds(markup)[0];
+
+    assert.ok(stylePx(led, "width") <= stylePx(well, "width"), "an LED wider than its well is clipped");
+    assert.ok(stylePx(led, "height") <= stylePx(well, "height"), "an LED taller than its well is clipped");
   });
 });
 

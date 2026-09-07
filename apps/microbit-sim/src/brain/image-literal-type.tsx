@@ -110,13 +110,16 @@ const kEditorLed: LedGeometry = { width: 20, height: 30, radius: 3, glow: { blur
 const kEditorWellSize = 40;
 
 /** The LED a placed tile's preview well holds. */
-const kPreviewLed: LedGeometry = { width: 5, height: 7, radius: 1.5, glow: { blur: 6, spread: 1.5, alpha: 0.5 } };
+const kPreviewLed: LedGeometry = { width: 4, height: 6, radius: 1.5, glow: { blur: 6, spread: 1.5, alpha: 0.45 } };
 
 /** Side of the square well a preview LED is centered in, in CSS pixels. */
-const kPreviewWellSize = 9;
+const kPreviewWellSize = 7;
 
-/** Gap and padding, in CSS pixels, the preview's wells are laid out with. */
+/** Gap, in CSS pixels, between adjacent wells of the preview grid. */
 const kPreviewWellGap = 1;
+
+/** Padding, in CSS pixels, the preview grid stands its wells inside. */
+const kPreviewGridPadding = 1.5;
 
 /**
  * The `box-shadow` an LED of `brightness` (0-255) casts, scaled from `glow`'s
@@ -235,7 +238,7 @@ function ImagePreview({ bytes }: { bytes: readonly number[] }) {
     <div
       data-testid="image-literal-preview"
       className="grid grid-cols-5 rounded-sm bg-panel"
-      style={{ gap: `${kPreviewWellGap}px`, padding: `${kPreviewWellGap}px` }}
+      style={{ gap: `${kPreviewWellGap}px`, padding: `${kPreviewGridPadding}px` }}
     >
       {bytes.map((brightness, index) => (
         <span key={cellKey(index)} className="flex items-center justify-center" style={wellStyle(kPreviewWellSize)}>
