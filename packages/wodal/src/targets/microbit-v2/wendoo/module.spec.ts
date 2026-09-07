@@ -280,6 +280,8 @@ test("each built-in image registers a literal tile carrying its baked Image stru
     const tile = tiles.get(builtInImageTileId(def));
     assert.ok(tile, `built-in image tile '${def.name}' should be registered`);
     assert.equal(tile.kind, "literal");
+    assert.equal(tile.persist, false);
+    assert.equal((tile as BrainTileLiteralDef).uniqueId, undefined);
     const value = (tile as BrainTileLiteralDef).value as Value | undefined;
     assert.ok(isStructValue(value));
     assert.equal(value.typeId, WODAL_SHARED_TYPE_IDS.Image);

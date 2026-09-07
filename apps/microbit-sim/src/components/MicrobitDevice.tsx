@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from "react";
 import { useMicrobitSimEnvironment } from "@/contexts/microbit-sim-environment";
+import { deviceLedGlow, ledColor } from "@/led-palette";
 import type { SimulatorInstance } from "@/services/simulator";
 
 /** Renders one simulated microbit: its live 5x5 display and the A, B, A+B, and Logo input buttons. */
@@ -29,7 +30,7 @@ export function MicrobitDevice({ instance }: { instance: SimulatorInstance }) {
               data-testid="led"
               data-brightness={brightness}
               className="h-4 w-4 rounded-sm"
-              style={{ background: ledColor(brightness) }}
+              style={{ background: ledColor(brightness), boxShadow: deviceLedGlow(brightness) }}
             />
           );
         })}
@@ -46,15 +47,6 @@ export function MicrobitDevice({ instance }: { instance: SimulatorInstance }) {
       </div>
     </div>
   );
-}
-
-/** Maps an LED brightness (0-255) to a fill color. */
-function ledColor(brightness: number): string {
-  if (brightness <= 0) {
-    return "rgba(120, 20, 20, 0.35)";
-  }
-  const intensity = 0.3 + (0.7 * brightness) / 255;
-  return `rgba(239, 68, 68, ${intensity.toFixed(3)})`;
 }
 
 function DeviceButton({ label, onChange }: { label: string; onChange: (pressed: boolean) => void }) {

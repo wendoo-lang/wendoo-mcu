@@ -18,7 +18,7 @@ import {
 } from "@wendoo/core/app";
 import type { TileVisual } from "@wendoo/ui";
 import { staticAssetUrl } from "@wendoo/ui";
-import { WODAL_SHARED_TYPE_IDS } from "@wendoo/wodal";
+import { WODAL_IMAGE_LITERAL_FACTORY_ID, WODAL_SHARED_TYPE_IDS } from "@wendoo/wodal";
 import {
   MicroBitV2HostActions,
   SOUND_EMOJI_TYPE_ID,
@@ -67,6 +67,7 @@ export const tileVisuals = new Map<string, Partial<TileVisual>>([
   // Literal Factories
   [mkLiteralFactoryTileId(CoreLiteralFactoryId.Number), { iconUrl: icon("lit-factory-number") }],
   [mkLiteralFactoryTileId(CoreLiteralFactoryId.String), { iconUrl: icon("lit-factory-text") }],
+  [mkLiteralFactoryTileId(WODAL_IMAGE_LITERAL_FACTORY_ID), { iconUrl: icon("lit-factory-image") }],
   // Core literals
   [mkLiteralTileId(CoreTypeIds.Boolean, "true"), { iconUrl: icon("literal-true") }],
   [mkLiteralTileId(CoreTypeIds.Boolean, "false"), { iconUrl: icon("literal-false") }],

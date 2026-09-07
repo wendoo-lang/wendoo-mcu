@@ -1,8 +1,11 @@
 import { assertUnreachable } from "@wendoo/core";
 import { CoreTypeIds, type WendooEnvironment } from "@wendoo/core/app";
 import type { BrainTileKind, IBrainTileDef } from "@wendoo/core/brain";
+import type { BrainTileLiteralDef } from "@wendoo/core/brain/tiles";
 import type { BrainEditorConfig, TileColorDef, TileVisual } from "@wendoo/ui";
 import { adjustColor, saturateColor } from "@wendoo/ui";
+import { WODAL_SHARED_TYPE_IDS } from "@wendoo/wodal";
+import { imageLiteralType } from "./image-literal-type";
 import { ICON_BASE, tileVisuals } from "./tile-visuals";
 
 /** The default icon URL a tile of the given kind falls back to, or undefined when the kind has no kind-specific default. */
@@ -43,13 +46,34 @@ const tileSideColors: TileColorDef = {
   do: adjustColor(saturateColor("#3affa3", kTileMute), kTileAdjust),
 };
 
+/** Data-type icon URLs keyed by type id, shared by the brain editor and the docs surfaces. */
+export const microbitDataTypeIcons: ReadonlyMap<string, string> = new Map([
+  [CoreTypeIds.Boolean, `${ICON_BASE}/boolean.svg`],
+  [CoreTypeIds.Number, `${ICON_BASE}/number.svg`],
+  [CoreTypeIds.String, `${ICON_BASE}/text.svg`],
+  [WODAL_SHARED_TYPE_IDS.Image, `${ICON_BASE}/image.svg`],
+]);
+
+/**
+ * The data-type icon a literal tile's value type carries in
+ * {@link microbitDataTypeIcons}, and `undefined` for a tile of any other kind
+ * or a value type the map does not name.
+ */
+function literalValueTypeIconUrl(tileDef: IBrainTileDef): string | undefined {
+  if (tileDef.kind !== "literal") {
+    return undefined;
+  }
+  return microbitDataTypeIcons.get((tileDef as BrainTileLiteralDef).valueType);
+}
+
 /**
  * Returns a tile-visual resolver that supplies the app's mapped visuals for
- * core tiles (see `tileVisuals`), gives page tiles the shared page icon when
- * they carry none of their own, rewrites compiler-minted `/vfs/<path>` tile
- * icon URLs to loadable URLs via `resolveVfsAssetUrl`, and applies the
- * {@link tileSideColors} WHEN/DO color pair to every tile. Intrinsic visuals a
- * tile carries in its metadata flow through unchanged.
+ * core tiles (see `tileVisuals`), falls back to the data-type icon of a
+ * literal's value type and then to the tile kind's own default icon, rewrites
+ * compiler-minted `/vfs/<path>` tile icon URLs to loadable URLs via
+ * `resolveVfsAssetUrl`, and applies the {@link tileSideColors} WHEN/DO color
+ * pair to every tile. Intrinsic visuals a tile carries in its metadata flow
+ * through unchanged.
  */
 export function createMicrobitTileVisualResolver(
   resolveVfsAssetUrl: (url: string) => string
@@ -60,30 +84,27 @@ export function createMicrobitTileVisualResolver(
     const intrinsicIconUrl = intrinsic?.iconUrl;
     const resolvedIconUrl = intrinsicIconUrl ? resolveVfsAssetUrl(intrinsicIconUrl) : undefined;
     const rewrittenIconUrl = resolvedIconUrl !== intrinsicIconUrl ? resolvedIconUrl : undefined;
-    const defaultIconUrl = !mapped?.iconUrl && !intrinsicIconUrl ? defaultKindIconUrl(tileDef.kind) : undefined;
+    const fallbackIconUrl =
+      !mapped?.iconUrl && !intrinsicIconUrl
+        ? (literalValueTypeIconUrl(tileDef) ?? defaultKindIconUrl(tileDef.kind))
+        : undefined;
     const visual: Partial<TileVisual> = {
       ...(intrinsic ?? {}),
       ...(mapped ?? {}),
       ...(rewrittenIconUrl !== undefined ? { iconUrl: rewrittenIconUrl } : {}),
-      ...(defaultIconUrl !== undefined ? { iconUrl: defaultIconUrl } : {}),
+      ...(fallbackIconUrl !== undefined ? { iconUrl: fallbackIconUrl } : {}),
       colorDef: tileSideColors,
     };
     return visual as TileVisual;
   };
 }
 
-/** Data-type icon URLs keyed by type id, shared by the brain editor and the docs surfaces. */
-export const microbitDataTypeIcons: ReadonlyMap<string, string> = new Map([
-  [CoreTypeIds.Boolean, `${ICON_BASE}/boolean.svg`],
-  [CoreTypeIds.Number, `${ICON_BASE}/number.svg`],
-  [CoreTypeIds.String, `${ICON_BASE}/text.svg`],
-]);
-
 /** Friendly data-type names keyed by type id, shared by the brain editor and the docs surfaces. */
 export const microbitDataTypeNames: ReadonlyMap<string, string> = new Map([
   [CoreTypeIds.Boolean, "boolean"],
   [CoreTypeIds.Number, "number"],
   [CoreTypeIds.String, "text"],
+  [WODAL_SHARED_TYPE_IDS.Image, "image"],
 ]);
 
 /** What the microbit-v2 brain editor config is built from. */
@@ -119,7 +140,7 @@ export function buildMicrobitBrainEditorConfig(options: BuildMicrobitBrainEditor
     projectNamespace,
     dataTypeIcons: microbitDataTypeIcons,
     dataTypeNames: microbitDataTypeNames,
-    customLiteralTypes: [],
+    customLiteralTypes: [imageLiteralType],
     brainServices: env.brainServices,
     localizer: env.appServices.localizer,
     tileCatalogs: env.tileCatalogs(),

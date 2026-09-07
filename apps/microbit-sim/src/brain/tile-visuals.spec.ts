@@ -2,11 +2,18 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { mkLiteralFactoryTileId, mkLiteralTileId } from "@wendoo/core/app";
 import type { IBrainTileDef } from "@wendoo/core/brain";
 import { tileSentenceWord } from "@wendoo/core/brain/language-service";
+import { type BrainTileFactoryDef, manufactureLiteralTile } from "@wendoo/core/brain/tiles";
 import { createDefaultLocalizer } from "@wendoo/core/localization";
+import { mkImageStructValue, WODAL_IMAGE_LITERAL_FACTORY_ID, WODAL_SHARED_TYPE_IDS } from "@wendoo/wodal";
 import { createMicroBitV2Environment } from "@wendoo/wodal/targets/microbit-v2";
-import { buildMicrobitBrainEditorConfig, createMicrobitTileVisualResolver } from "./editor-config";
+import {
+  buildMicrobitBrainEditorConfig,
+  createMicrobitTileVisualResolver,
+  microbitDataTypeIcons,
+} from "./editor-config";
 import { tileVisuals } from "./tile-visuals";
 
 /**
@@ -116,5 +123,35 @@ describe("microbit-sim tile visuals", () => {
     }
     const missing = [...iconUrls].filter((iconUrl) => !existsSync(iconFilePath(iconUrl)));
     assert.deepEqual(missing, [], `icon URLs without a backing file: ${missing.join(", ")}`);
+  });
+});
+
+describe("a literal tile the visuals map does not name", () => {
+  test("takes the icon its value type carries, not the missing-tile fallback", () => {
+    const env = createMicroBitV2Environment();
+    const factoryTileDef = env.brainServices.edit.tiles.get(mkLiteralFactoryTileId(WODAL_IMAGE_LITERAL_FACTORY_ID));
+    assert.ok(factoryTileDef, "expected the image literal factory to be registered");
+    const minted = manufactureLiteralTile(
+      factoryTileDef as BrainTileFactoryDef,
+      undefined,
+      mkImageStructValue(5, 5, new Array(25).fill(0))
+    );
+    assert.ok(minted, "expected the factory to mint an image literal");
+    assert.equal(tileVisuals.has(minted.tileId), false, "a minted literal has no entry of its own");
+
+    const resolveTileVisual = createMicrobitTileVisualResolver((url) => url);
+
+    assert.equal(resolveTileVisual(minted).iconUrl, microbitDataTypeIcons.get(WODAL_SHARED_TYPE_IDS.Image));
+  });
+
+  test("leaves a literal the map does name with the icon the map gives it", () => {
+    const heartTileId = mkLiteralTileId(WODAL_SHARED_TYPE_IDS.Image, "heart");
+    const heartTileDef = catalogTiles().find((tileDef) => tileDef.tileId === heartTileId);
+    assert.ok(heartTileDef, heartTileId);
+
+    const resolveTileVisual = createMicrobitTileVisualResolver((url) => url);
+
+    assert.equal(resolveTileVisual(heartTileDef).iconUrl, tileVisuals.get(heartTileId)?.iconUrl);
+    assert.notEqual(resolveTileVisual(heartTileDef).iconUrl, microbitDataTypeIcons.get(WODAL_SHARED_TYPE_IDS.Image));
   });
 });

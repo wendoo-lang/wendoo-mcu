@@ -26,6 +26,7 @@ export {
   type FirmwarePatchResult,
   patchFirmwareHex,
 } from "./wendoo/firmware-patcher";
+export { mkImageStructValue } from "./wendoo/image-value";
 export {
   parseWodalProgramImage,
   serializeWodalProgramImageJson,
@@ -43,5 +44,9 @@ export {
   WodalProgramLoadValidationCode,
   type WodalProgramLoadValidationError,
 } from "./wendoo/program-load";
-export { createWodalSharedModule, WODAL_SHARED_MODULE_ID } from "./wendoo/shared-module";
+export {
+  createWodalSharedModule,
+  WODAL_IMAGE_LITERAL_FACTORY_ID,
+  WODAL_SHARED_MODULE_ID,
+} from "./wendoo/shared-module";
 export { ImageField, WODAL_SHARED_TYPE_IDS, WodalSharedTypeAtomId } from "./wendoo/shared-type-ids";

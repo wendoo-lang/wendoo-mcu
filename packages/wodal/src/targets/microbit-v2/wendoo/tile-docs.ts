@@ -64,6 +64,7 @@ export const MICROBIT_V2_TILE_DOCS: readonly MicroBitV2TileDocEntry[] = [
   { tileId: "tile.parameter->microbit-v2.duration", contentKey: "parameter-duration" },
   { tileId: "tile.parameter->microbit-v2.sound-emoji", contentKey: "parameter-sound" },
   { tileId: "tile.parameter->microbit-v2.volume", contentKey: "parameter-volume" },
+  { tileId: "tile.lit.factory->image", contentKey: "lit-factory-image" },
   { tileId: "tile.literal->struct:<Image>->heart", contentKey: "literal-image-heart" },
   { tileId: "tile.literal->struct:<Image>->happy", contentKey: "literal-image-happy" },
   { tileId: "tile.literal->struct:<Image>->sad", contentKey: "literal-image-sad" },

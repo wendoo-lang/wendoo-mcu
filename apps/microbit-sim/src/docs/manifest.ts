@@ -38,9 +38,12 @@ export const undocumentedTileIds: ReadonlySet<string> = new Set([
 
 /**
  * Docs sidebar category overrides, keyed by tile id, for tiles whose
- * kind-derived category is wrong.
+ * kind-derived category is wrong, and for tiles whose kind gets no category of
+ * its own.
  */
-export const tileCategoryOverrides: Readonly<Record<string, string>> = {};
+export const tileCategoryOverrides: Readonly<Record<string, string>> = {
+  "tile.lit.factory->image": "Literals",
+};
 
 /**
  * Pattern doc pages. Each entry's `contentKey` is a filename stem under

@@ -14,6 +14,7 @@
     "../../external/wendoo-lang/packages/docs/src/**/*.tsx",
     "../../external/wendoo-lang/packages/assistant-panel/src/**/*.tsx",
     "../../external/wendoo-lang/packages/ui/src/markdown/**/*.tsx",
+    "src/brain/image-literal-type.tsx",
     "src/components/BrainDiagnostics.tsx",
     "src/components/CompileDiagnosticsConsole.tsx",
     "src/components/ConsoleOutputList.tsx",

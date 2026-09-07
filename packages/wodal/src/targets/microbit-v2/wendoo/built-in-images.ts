@@ -1,19 +1,7 @@
-import {
-  List,
-  mkClosedStructValue,
-  mkLiteralTileId,
-  mkNumberValue,
-  mkTypeId,
-  NativeType,
-  type StructValue,
-  type Value,
-} from "@wendoo/core/app";
-import { mkBufferValueFromHex } from "@wendoo/core/runtime";
-import { ImageField } from "../../../wendoo/shared-type-ids";
+import { mkLiteralTileId, type StructValue } from "@wendoo/core/app";
+import { mkImageStructValue } from "../../../wendoo/image-value";
+import { WODAL_SHARED_TYPE_IDS } from "../../../wendoo/shared-type-ids";
 import { MICROBIT_LED_MATRIX_SIZE } from "../constants";
-
-/** TypeId of the `Image` value struct the built-in literals carry. */
-const IMAGE_TYPE_ID = mkTypeId(NativeType.Struct, "Image");
 
 /** Brightness of a lit pixel in the built-in icons (full brightness). */
 const LIT = 255;
@@ -165,14 +153,10 @@ export function builtInImageFrame(def: BuiltInImageDef): { frame: number[]; widt
  * value a surface-1 built-in literal tile carries and bakes into a program.
  */
 export function builtInImageStructValue(def: BuiltInImageDef): StructValue {
-  const slots: Value[] = [];
-  slots[ImageField.Width] = mkNumberValue(MICROBIT_LED_MATRIX_SIZE);
-  slots[ImageField.Height] = mkNumberValue(MICROBIT_LED_MATRIX_SIZE);
-  slots[ImageField.Pixels] = mkBufferValueFromHex(builtInImageHex(def));
-  return mkClosedStructValue(IMAGE_TYPE_ID, List.from(slots));
+  return mkImageStructValue(MICROBIT_LED_MATRIX_SIZE, MICROBIT_LED_MATRIX_SIZE, builtInImageBytes(def));
 }
 
 /** The derived literal tile id of a built-in image's surface-1 tile. */
 export function builtInImageTileId(def: BuiltInImageDef): string {
-  return mkLiteralTileId(IMAGE_TYPE_ID, def.name);
+  return mkLiteralTileId(WODAL_SHARED_TYPE_IDS.Image, def.name);
 }
