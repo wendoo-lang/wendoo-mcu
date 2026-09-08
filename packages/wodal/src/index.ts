@@ -26,7 +26,14 @@ export {
   type FirmwarePatchResult,
   patchFirmwareHex,
 } from "./wendoo/firmware-patcher";
-export { mkImageStructValue } from "./wendoo/image-value";
+export {
+  imageDigitsFromValue,
+  imageGridBytes,
+  imageLevelBrightness,
+  imageValueFromDigits,
+  isImageGridDigits,
+  mkImageStructValue,
+} from "./wendoo/image-value";
 export {
   parseWodalProgramImage,
   serializeWodalProgramImageJson,

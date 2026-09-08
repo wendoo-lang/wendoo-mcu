@@ -1,7 +1,12 @@
-import { extractNumberValue, isStructValue, type Value } from "@wendoo/core/app";
-import { bufferByteAt, bufferLength, isBufferValue } from "@wendoo/core/runtime";
 import type { CustomLiteralType } from "@wendoo/ui";
-import { ImageField, mkImageStructValue, WODAL_SHARED_TYPE_IDS } from "@wendoo/wodal";
+import {
+  imageDigitsFromValue,
+  imageGridBytes,
+  imageLevelBrightness,
+  imageValueFromDigits,
+  isImageGridDigits,
+  WODAL_SHARED_TYPE_IDS,
+} from "@wendoo/wodal";
 import { MICROBIT_LED_MATRIX_SIZE } from "@wendoo/wodal/targets/microbit-v2";
 import { type CSSProperties, useState } from "react";
 import { ledColor } from "@/led-palette";
@@ -15,14 +20,8 @@ const kGridPixelCount = kGridSize * kGridSize;
 /** Number of brightness levels a pixel takes, one per hex digit. */
 const kLevelCount = 16;
 
-/** Brightness step between adjacent levels: level `0` is 0 and level `f` is 255. */
-const kLevelStep = 17;
-
 /** Key the grid's pixel digits travel under in a create-literal dialog's input state. */
 export const kImagePixelsFieldKey = "pixels";
-
-/** A well-formed grid field: one lowercase hex brightness digit per pixel. */
-const kGridDigitsPattern = new RegExp(`^[0-9a-f]{${kGridPixelCount}}$`);
 
 /** The all-unlit grid. */
 const kBlankGridDigits = "0".repeat(kGridPixelCount);
@@ -40,45 +39,7 @@ export function imageGridDigits(state: Record<string, string>): string | undefin
   if (digits === "") {
     return kBlankGridDigits;
   }
-  return kGridDigitsPattern.test(digits) ? digits : undefined;
-}
-
-/**
- * The grid an `Image` struct value fills: {@link kGridPixelCount} brightness
- * bytes (0-255), row-major, read from the image's top-left region. A row or
- * column the image does not reach, and a pixel its buffer does not hold, reads
- * as 0. Returns `undefined` for a value that is not an `Image` struct: numeric
- * `width` and `height` fields and a `pixels` buffer, in `ImageField` slot
- * order.
- *
- * @param value - The value to read, as carried by an image literal tile.
- */
-export function imageGridBytes(value: unknown): number[] | undefined {
-  const struct = value as Value | undefined;
-  if (!isStructValue(struct) || struct.v === undefined) {
-    return undefined;
-  }
-  const width = extractNumberValue(struct.v.at(ImageField.Width));
-  const height = extractNumberValue(struct.v.at(ImageField.Height));
-  const pixels = struct.v.at(ImageField.Pixels);
-  if (width === undefined || height === undefined || !isBufferValue(pixels)) {
-    return undefined;
-  }
-  const pixelCount = bufferLength(pixels);
-  const bytes: number[] = [];
-  for (let row = 0; row < kGridSize; row++) {
-    for (let col = 0; col < kGridSize; col++) {
-      const index = row * width + col;
-      const inside = row < height && col < width && index < pixelCount;
-      bytes.push(inside ? (bufferByteAt(pixels, index) ?? 0) : 0);
-    }
-  }
-  return bytes;
-}
-
-/** The brightness byte of level `level`, on the hex-digit scale. */
-function levelBrightness(level: number): number {
-  return level * kLevelStep;
+  return isImageGridDigits(digits) ? digits : undefined;
 }
 
 /** Halo a lit LED casts, in CSS pixels and alpha, at full brightness. */
@@ -202,7 +163,7 @@ function ImageGridEditor({ digits, onChange }: ImageGridEditorProps) {
             style={wellStyle(kEditorWellSize)}
             onClick={() => onChange(paintGridDigit(digits, index, level))}
           >
-            <span style={ledStyle(levelBrightness(Number.parseInt(digit, 16)), kEditorLed)} />
+            <span style={ledStyle(imageLevelBrightness(Number.parseInt(digit, 16)), kEditorLed)} />
           </button>
         ))}
       </div>
@@ -225,7 +186,7 @@ function ImageGridEditor({ digits, onChange }: ImageGridEditorProps) {
           className="flex items-center justify-center rounded-md bg-panel"
           style={wellStyle(kEditorWellSize)}
         >
-          <span style={ledStyle(levelBrightness(level), kEditorLed)} />
+          <span style={ledStyle(imageLevelBrightness(level), kEditorLed)} />
         </span>
       </div>
     </div>
@@ -269,20 +230,12 @@ export const imageLiteralType: CustomLiteralType = {
 
   parseValue(state: Record<string, string>): unknown {
     const digits = imageGridDigits(state);
-    if (digits === undefined) {
-      return undefined;
-    }
-    const bytes = [...digits].map((digit) => levelBrightness(Number.parseInt(digit, 16)));
-    return mkImageStructValue(kGridSize, kGridSize, bytes);
+    return digits === undefined ? undefined : imageValueFromDigits(digits);
   },
 
   toInputState(value: unknown): Record<string, string> {
-    const bytes = imageGridBytes(value);
-    if (bytes === undefined) {
-      return {};
-    }
-    const digits = bytes.map((brightness) => Math.round(brightness / kLevelStep).toString(16)).join("");
-    return { [kImagePixelsFieldKey]: digits };
+    const digits = imageDigitsFromValue(value);
+    return digits === undefined ? {} : { [kImagePixelsFieldKey]: digits };
   },
 
   renderInputFields(state: Record<string, string>, onChange: (key: string, value: string) => void) {

@@ -24,10 +24,10 @@ import { mkLiteralFactoryTileId } from "@wendoo/core/brain";
 import { EditLiteralCommand } from "@wendoo/core/brain/model";
 import type { BrainTileFactoryDef, BrainTileLiteralDef } from "@wendoo/core/brain/tiles";
 import { manufactureLiteralTile } from "@wendoo/core/brain/tiles";
-import { WODAL_IMAGE_LITERAL_FACTORY_ID } from "@wendoo/wodal";
+import { imageGridBytes, WODAL_IMAGE_LITERAL_FACTORY_ID } from "@wendoo/wodal";
 import { MicroBitV2HostActions } from "@wendoo/wodal/targets/microbit-v2";
 import { createTargetAdapter } from "@wendoo/wodal/targets/microbit-v2/rehearsal";
-import { imageGridBytes, imageLiteralType, kImagePixelsFieldKey } from "../brain/image-literal-type";
+import { imageLiteralType, kImagePixelsFieldKey } from "../brain/image-literal-type";
 
 /** The one role this target puts under study. */
 const SUBJECT = "device";

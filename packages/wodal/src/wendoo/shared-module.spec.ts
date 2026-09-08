@@ -41,6 +41,19 @@ function pixels(first: number): number[] {
   return bytes;
 }
 
+/** A drawn grid using every brightness level, as a pixel-digit string. */
+const kRampDigits = ["0123f", "6789a", "bcdef", "01234", "56789"].join("");
+
+/** The `pixels` buffer of the image `minted` carries, as lowercase hex bytes. */
+function pixelHexOf(minted: BrainTileLiteralDef | undefined): string {
+  assert.ok(minted);
+  const value = minted.value as Value | undefined;
+  assert.ok(isStructValue(value));
+  const buffer = value.v?.at(ImageField.Pixels);
+  assert.ok(isBufferValue(buffer));
+  return bufferToHex(buffer);
+}
+
 describe("the Image literal factory tile", () => {
   test("registers under its factory tile id and produces the shared Image type", () => {
     const factoryTileDef = imageFactory(createEnvironment());
@@ -137,16 +150,44 @@ describe("the Image literal factory tile", () => {
     assert.equal(bufferToHex(buffer), bytes.map((byte) => byte.toString(16).padStart(2, "0")).join(""));
   });
 
+  test("mints a literal whose struct slots carry the pixels a pixel-digit string spells", () => {
+    const env = createEnvironment();
+
+    const minted = manufactureLiteralTile(imageFactory(env), undefined, kRampDigits) as BrainTileLiteralDef | undefined;
+
+    assert.ok(minted);
+    const value = minted.value as Value | undefined;
+    assert.ok(isStructValue(value));
+    assert.equal(value.typeId, WODAL_SHARED_TYPE_IDS.Image);
+    assert.equal(extractNumberValue(value.v?.at(ImageField.Width)), 5);
+    assert.equal(extractNumberValue(value.v?.at(ImageField.Height)), 5);
+    const buffer = value.v?.at(ImageField.Pixels);
+    assert.ok(isBufferValue(buffer));
+    assert.equal(bufferToHex(buffer), [...kRampDigits].map((digit) => digit + digit).join(""));
+  });
+
+  test("mints the same image from a pixel-digit string as from the struct value it spells", () => {
+    const env = createEnvironment();
+    const bytes = [...kRampDigits].map((digit) => Number.parseInt(digit, 16) * 17);
+
+    const fromDigits = manufactureLiteralTile(imageFactory(env), undefined, kRampDigits);
+    const fromStruct = manufactureLiteralTile(imageFactory(env), undefined, mkImageStructValue(5, 5, bytes));
+
+    assert.equal(pixelHexOf(fromDigits), pixelHexOf(fromStruct));
+  });
+
   test("refuses to mint without a value to carry", () => {
     const factoryTileDef = imageFactory(createEnvironment());
 
     assert.equal(factoryTileDef.manufacture(factoryTileDef, {}), undefined);
   });
 
-  test("refuses to mint a value that is not an Image struct", () => {
+  test("refuses to mint a value that names no image", () => {
     const factoryTileDef = imageFactory(createEnvironment());
 
-    assert.equal(factoryTileDef.manufacture(factoryTileDef, { value: "0123456789abcdef012345678" }), undefined);
+    assert.equal(factoryTileDef.manufacture(factoryTileDef, { value: kRampDigits.slice(1) }), undefined);
+    assert.equal(factoryTileDef.manufacture(factoryTileDef, { value: kRampDigits.toUpperCase() }), undefined);
+    assert.equal(factoryTileDef.manufacture(factoryTileDef, { value: "5x5-00ff00" }), undefined);
     assert.equal(factoryTileDef.manufacture(factoryTileDef, { value: 42 }), undefined);
     assert.equal(factoryTileDef.manufacture(factoryTileDef, { value: true }), undefined);
   });

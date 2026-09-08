@@ -22,13 +22,18 @@ import { EditLiteralCommand, encodePersistedBrainJson } from "@wendoo/core/brain
 import type { BrainTileFactoryDef } from "@wendoo/core/brain/tiles";
 import { manufactureLiteralTile } from "@wendoo/core/brain/tiles";
 import { CoreHostActions } from "@wendoo/core/runtime";
-import { getWodalDeviceProfile, WODAL_IMAGE_LITERAL_FACTORY_ID, WodalDeviceProfileId } from "@wendoo/wodal";
+import {
+  getWodalDeviceProfile,
+  imageGridBytes,
+  WODAL_IMAGE_LITERAL_FACTORY_ID,
+  WodalDeviceProfileId,
+} from "@wendoo/wodal";
 import {
   createMicroBitV2Environment,
   MicroBitV2HostActions,
   WodalMicroBitV2ParameterId,
 } from "@wendoo/wodal/targets/microbit-v2";
-import { imageGridBytes, imageLiteralType, kImagePixelsFieldKey } from "../brain/image-literal-type";
+import { imageLiteralType, kImagePixelsFieldKey } from "../brain/image-literal-type";
 import { MicrobitSimulator } from "../services/simulator";
 
 /** Simulated milliseconds each tick advances the device. */

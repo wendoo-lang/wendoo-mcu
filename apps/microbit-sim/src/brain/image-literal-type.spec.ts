@@ -7,7 +7,7 @@ import { ImageField, mkImageStructValue, WODAL_SHARED_TYPE_IDS } from "@wendoo/w
 import { createMicroBitV2Environment } from "@wendoo/wodal/targets/microbit-v2";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildMicrobitBrainEditorConfig } from "./editor-config";
-import { imageGridBytes, imageLiteralType, kImagePixelsFieldKey, paintGridDigit } from "./image-literal-type";
+import { imageLiteralType, kImagePixelsFieldKey, paintGridDigit } from "./image-literal-type";
 
 /** A drawn grid: full-brightness heart, one hex digit per pixel, row-major. */
 const kHeartDigits = ["0f0f0", "fffff", "fffff", "0fff0", "00f00"].join("");
@@ -185,7 +185,6 @@ describe("the image literal type", () => {
 
   test("a value of another shape seeds no fields and draws no node", () => {
     assert.deepEqual(imageLiteralType.toInputState("5x5-00ff00"), {});
-    assert.equal(imageGridBytes("5x5-00ff00"), undefined);
     assert.equal(imageLiteralType.renderValue?.("5x5-00ff00"), undefined);
   });
 
