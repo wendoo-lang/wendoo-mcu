@@ -1,7 +1,7 @@
 {
   "name": "@wendoo/microbit-sim",
   "description": "Microbit Simulator for Wendoo",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "private": true,
   "type": "module",
   "author": "humanapp",
