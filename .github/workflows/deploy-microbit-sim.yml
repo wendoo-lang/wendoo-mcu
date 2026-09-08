@@ -10,8 +10,9 @@ permissions:
   contents: read
 
 env:
-  S3_BUCKET: microbit.wendoo-lang.org
+  S3_BUCKET: microbit.mindcraft-lang.org
   AWS_REGION: us-east-1
+  CLOUDFRONT_DISTRIBUTION_ID: E3MYKIZ1C0O435
 
 jobs:
   build-and-deploy:
@@ -55,5 +56,5 @@ jobs:
       - name: Invalidate CloudFront cache
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id "${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --distribution-id "${{ env.CLOUDFRONT_DISTRIBUTION_ID }}" \
             --paths "/*"
