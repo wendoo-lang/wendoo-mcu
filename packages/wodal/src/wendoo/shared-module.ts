@@ -8,6 +8,7 @@ import {
 } from "@wendoo/core/app";
 import { mintDocumentId } from "@wendoo/core/brain/model";
 import { BrainTileFactoryDef } from "@wendoo/core/brain/tiles";
+import { isImageStructValue } from "./image-value";
 import { ImageField, WODAL_SHARED_TYPE_IDS, WodalSharedTypeAtomId } from "./shared-type-ids";
 
 /** Wendoo module ID for the wodal-shared types installed by every target. */
@@ -53,6 +54,8 @@ function registerSharedTypes(api: WendooModuleApi): void {
  * an `Image` literal tile carrying the submitted `Image` struct value under a
  * freshly minted unique identity, so two manufactures of identical pixel
  * content yield distinct tiles. The minted literal persists into a saved brain.
+ * A manufacture whose `value` option is not an `Image` struct value mints
+ * nothing and returns `undefined`.
  */
 function registerImageLiteralFactory(api: WendooModuleApi): void {
   const services = api.brainServices;
@@ -61,13 +64,10 @@ function registerImageLiteralFactory(api: WendooModuleApi): void {
       mkLiteralFactoryTileId(WODAL_IMAGE_LITERAL_FACTORY_ID),
       WODAL_IMAGE_LITERAL_FACTORY_ID,
       (factoryTileDef, opts) => {
-        const value = opts.value;
-        if (value === undefined) {
-          throw new Error("Image literal factory tile definition requires a 'value' option");
-        }
+        if (!isImageStructValue(opts.value)) return undefined;
         return new BrainTileLiteralDef(
           factoryTileDef.producedDataType,
-          value,
+          opts.value,
           { uniqueId: mintDocumentId(services.app.rng) },
           services
         );

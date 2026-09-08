@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { extractNumberValue } from "@wendoo/core/app";
 import { bufferToHex, isBufferValue } from "@wendoo/core/runtime";
-import { mkImageStructValue } from "./image-value";
+import { isImageStructValue, mkImageStructValue } from "./image-value";
 import { ImageField, WODAL_SHARED_TYPE_IDS } from "./shared-type-ids";
 
 /** Brightness bytes of a `width` x `height` image, cycling the 16 brightness levels. */
@@ -26,5 +26,18 @@ describe("mkImageStructValue", () => {
     const pixels = value.v?.at(ImageField.Pixels);
     assert.ok(isBufferValue(pixels));
     assert.equal(bufferToHex(pixels), bytes.map((byte) => byte.toString(16).padStart(2, "0")).join(""));
+  });
+});
+
+describe("isImageStructValue", () => {
+  test("accepts a built Image struct value", () => {
+    assert.equal(isImageStructValue(mkImageStructValue(5, 5, rampBytes(5, 5))), true);
+  });
+
+  test("rejects values that are not Image structs", () => {
+    assert.equal(isImageStructValue(undefined), false);
+    assert.equal(isImageStructValue("0123456789abcdef012345678"), false);
+    assert.equal(isImageStructValue(42), false);
+    assert.equal(isImageStructValue(true), false);
   });
 });

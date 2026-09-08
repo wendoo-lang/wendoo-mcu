@@ -1,6 +1,13 @@
 import { stream } from "@wendoo/core";
-import { List, mkClosedStructValue, mkNumberValue, type StructValue, type Value } from "@wendoo/core/app";
-import { mkBufferValue } from "@wendoo/core/runtime";
+import {
+  extractNumberValue,
+  List,
+  mkClosedStructValue,
+  mkNumberValue,
+  type StructValue,
+  type Value,
+} from "@wendoo/core/app";
+import { isBufferValue, isStructValue, mkBufferValue } from "@wendoo/core/runtime";
 import { ImageField, WODAL_SHARED_TYPE_IDS } from "./shared-type-ids";
 
 /**
@@ -19,4 +26,21 @@ export function mkImageStructValue(width: number, height: number, pixels: readon
   slots[ImageField.Height] = mkNumberValue(height);
   slots[ImageField.Pixels] = mkBufferValue(stream.byteArrayFromUint8Array(new Uint8Array(pixels)));
   return mkClosedStructValue(WODAL_SHARED_TYPE_IDS.Image, List.from(slots));
+}
+
+/**
+ * True when `value` is an `Image` struct value: the wodal-shared `Image`
+ * struct type carrying numeric `width` and `height` fields and a `pixels`
+ * buffer.
+ */
+export function isImageStructValue(value: unknown): value is StructValue {
+  const candidate = value as Value | undefined;
+  if (!isStructValue(candidate) || candidate.typeId !== WODAL_SHARED_TYPE_IDS.Image || candidate.v === undefined) {
+    return false;
+  }
+  return (
+    extractNumberValue(candidate.v.at(ImageField.Width)) !== undefined &&
+    extractNumberValue(candidate.v.at(ImageField.Height)) !== undefined &&
+    isBufferValue(candidate.v.at(ImageField.Pixels))
+  );
 }

@@ -140,6 +140,14 @@ describe("the Image literal factory tile", () => {
   test("refuses to mint without a value to carry", () => {
     const factoryTileDef = imageFactory(createEnvironment());
 
-    assert.throws(() => factoryTileDef.manufacture(factoryTileDef, {}));
+    assert.equal(factoryTileDef.manufacture(factoryTileDef, {}), undefined);
+  });
+
+  test("refuses to mint a value that is not an Image struct", () => {
+    const factoryTileDef = imageFactory(createEnvironment());
+
+    assert.equal(factoryTileDef.manufacture(factoryTileDef, { value: "0123456789abcdef012345678" }), undefined);
+    assert.equal(factoryTileDef.manufacture(factoryTileDef, { value: 42 }), undefined);
+    assert.equal(factoryTileDef.manufacture(factoryTileDef, { value: true }), undefined);
   });
 });
