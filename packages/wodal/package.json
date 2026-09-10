@@ -87,7 +87,7 @@
     "prebuild": "npm run build:deps",
     "build": "tsc -p tsconfig.build.json && npm run build:cli",
     "build:cli": "esbuild src/cli/wodal.ts --bundle --platform=node --format=esm --outfile=dist/cli/wodal.js",
-    "build:prod": "tsc --build tsconfig.prod.json && npm run build:cli",
+    "build:prod": "wireit",
     "clean": "rm -rf dist tsconfig.tsbuildinfo tsconfig.prod.tsbuildinfo",
     "pregenerate:ambient": "npm run build:deps",
     "generate:ambient": "tsx --tsconfig scripts/tsconfig.json scripts/generate-ambient.ts",
@@ -106,6 +106,21 @@
     "release:minor": "node ../../external/wendoo-lang/scripts/release.js minor",
     "release:major": "node ../../external/wendoo-lang/scripts/release.js major"
   },
+  "wireit": {
+    "build:prod": {
+      "command": "tsc --build tsconfig.prod.json && npm run build:cli",
+      "dependencies": [
+        "../../external/wendoo-lang/packages/assistant-bridge:build:prod",
+        "../../external/wendoo-lang/packages/core:build:prod",
+        "../../external/wendoo-lang/packages/service-api:build:prod",
+        "../../external/wendoo-lang/packages/ts-compiler:build:prod"
+      ],
+      "files": ["src/**", "!src/**/*.spec.ts", "tsconfig.build.json", "tsconfig.prod.json", "package-lock.json"],
+      "output": ["dist/**", "tsconfig.prod.tsbuildinfo"],
+      "clean": true,
+      "packageLocks": []
+    }
+  },
   "dependencies": {
     "@wendoo/assistant-bridge": "file:../../external/wendoo-lang/packages/assistant-bridge",
     "@wendoo/core": "file:../../external/wendoo-lang/packages/core",
@@ -117,6 +132,7 @@
     "@wendoo/ts-compiler": "file:../../external/wendoo-lang/packages/ts-compiler",
     "@types/node": "^25.3.0",
     "esbuild": "^0.27.7",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "wireit": "^0.14.13"
   }
 }

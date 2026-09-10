@@ -3,20 +3,14 @@
  * Builds this target's headless adapter artifact: bundles the rehearsal adapter
  * its device-runtime dependency publishes into one self-contained,
  * plain-Node-importable ES module, published under the target identity this
- * target's own wendoo.json declares. Exits nonzero when a package the bundle
- * would carry was built before its own sources were last edited, when the
- * manifest declares no identity, or when the bundle fails.
+ * target's own wendoo.json declares. Exits nonzero when the manifest declares
+ * no identity or when the bundle fails.
  * Run through `npm run build:headless`.
  */
 import { mkdirSync, rmSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  assertDependencyDistsFresh,
-  createTargetBuildStamp,
-  readTargetIdentity,
-  StaleDependencyError,
-} from "@wendoo/assistant-bridge/kit/node";
+import { createTargetBuildStamp, readTargetIdentity } from "@wendoo/assistant-bridge/kit/node";
 import { build } from "esbuild";
 
 /** The device this app distributes, named as its device-runtime package subtree carries it. */
@@ -26,14 +20,6 @@ const DEVICE = "microbit-v2";
 const ADAPTER_ENTRY = `@wendoo/wodal/targets/${DEVICE}/rehearsal`;
 
 const appDir = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-try {
-  assertDependencyDistsFresh(appDir);
-} catch (cause) {
-  if (!(cause instanceof StaleDependencyError)) throw cause;
-  console.error(`build-headless-adapter: ${cause.message}`);
-  process.exit(1);
-}
 
 const targetIdentity = readTargetIdentity(appDir);
 

@@ -60,7 +60,7 @@ or \`tile:tile.modifier->microbit-v2.in-background\` to let the rule continue
 without waiting. A duration of 0 paints the image and continues at once.
 
 \`\`\`assistant
-Several images in one draw play in order, each held for the duration, and the last stays on the display -- one draw is a whole animation. The rule holds until the sequence has finished showing: until then a rule under it does not get its turn, and this rule cannot fire again; when the hold ends the rule may fire again, so one rule drawing the full sequence is how an animation loops. Do not split an animation's frames across rules: a draw asked for while the display is busy is dropped, so racing rules lose frames. Add "in background" to let the rule carry on, or "immediately" to cut off what the display is showing. There is no blank built-in image; a blank or dim frame is an image the user has drawn.
+Several images in one draw play in order, each held for the duration, and the last stays on the display -- one draw is a whole animation. The rule holds until the sequence has finished showing: until then a rule under it does not get its turn, and this rule cannot fire again; when the hold ends the rule may fire again, so one rule drawing the full sequence is how an animation loops. Do not split an animation's frames across rules: a draw asked for while the display is busy is dropped, so racing rules lose frames. Add "in background" to let the rule carry on, or "immediately" to cut off what the display is showing. There is no blank built-in image; for a blank or dim frame, mint one with the create-an-image factory (all-zero digits make a dark screen) or use an image the user has drawn.
 \`\`\`
 `,
   "actuator-play-sound": `\`\`\`brain noframe do
@@ -347,7 +347,7 @@ first: a duplicate is a separate image tile, drawn from the same pixels, that yo
 can edit without touching the one you copied.
 
 \`\`\`assistant
-You cannot create an image: the grid editor is the only way one is drawn, and the person using the editor draws it. Use the images that already exist, by tile id -- read_catalog and read_project list them, the built-in ones and the ones the user drew. A drawn image may carry a name, which is the word it is listed under. Editing an image keeps its tile id and updates every placement of it at once; duplicating one makes a separate image tile with an id of its own.
+You can create an image: mint this factory through propose_edit, giving value and name together. The value is 25 hex digits, one per pixel of the 5x5 grid, rows left to right from the top row down -- 0 is dark, f is brightest, and a digit between is a dimmer pixel. The name is required; it is the word the image is listed under, and a mint without one is refused. The minted image joins the document group of read_catalog and works anywhere a built-in image does. Before minting, check read_catalog and read_project for an image that already fits -- built-in, drawn by the user, or minted earlier -- and reuse it by tile id. You cannot change an image's pixels after minting; to get a different picture, mint a new image under a new name. The person can edit any image in the grid editor; such an edit keeps the tile id and updates every placement at once.
 \`\`\`
 `,
   "literal-image-arrow-east": `\`\`\`brain noframe do
