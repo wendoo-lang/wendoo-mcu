@@ -40,10 +40,12 @@ inline constexpr HostActionIds DeferEcho{TARGET_ACTION_ID_BASE + 2, TARGET_FUNC_
 inline constexpr HostActionIds DeferFail{TARGET_ACTION_ID_BASE + 3, TARGET_FUNC_ID_BASE + 3};
 /** Synchronous actuator that faults its calling fiber with `ScriptError`. */
 inline constexpr HostActionIds Fault{TARGET_ACTION_ID_BASE + 4, TARGET_FUNC_ID_BASE + 4};
+/** Presence-gated synchronous sensor delivering a value on the thinks its period divides. */
+inline constexpr HostActionIds Signal{TARGET_ACTION_ID_BASE + 5, TARGET_FUNC_ID_BASE + 5};
 } // namespace ConformanceHostActions
 
 /** Number of conformance host-action bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostActionBindingCount = 5;
+inline constexpr uint32_t kConformanceHostActionBindingCount = 6;
 
 /** Arg-buffer slot of the value argument of `echo`, `emit`, and `defer echo`. */
 inline constexpr uint32_t kConformanceValueSlot = 0;
@@ -54,8 +56,14 @@ inline constexpr uint32_t kDeferEchoTicksSlot = 1;
 /** Arg-buffer slot of the whole-tick count of `defer fail`. */
 inline constexpr uint32_t kDeferFailTicksSlot = 0;
 
-/** Ticks a deferred call waits when its `ticks` argument is absent or not a number. */
-inline constexpr uint32_t kDefaultDeferTicks = 1;
+/** Arg-buffer slot of the whole-tick period of `signal`. */
+inline constexpr uint32_t kSignalPeriodSlot = 0;
+
+/** Whole-tick count a deferred call waits, or a signal's period, when the argument carries none. */
+inline constexpr uint32_t kDefaultWholeTicks = 1;
+
+/** Value `signal` delivers on a tick it is present: falsy, so only a presence gate fires on it. */
+inline constexpr mc_number_t kSignalValue = 0;
 
 /** Error code `defer fail` rejects its handle with. */
 inline constexpr ErrorCode kDeferFailCode = ErrorCode::HostError;
@@ -128,9 +136,9 @@ private:
 namespace conformance_detail {
 
 /** Whole-tick count carried by the argument at `slot`, or the default when it carries none. */
-inline uint32_t ticksArg(Span<const Value> args, uint32_t slot) {
+inline uint32_t wholeTicksArg(Span<const Value> args, uint32_t slot) {
   if (slot >= args.size() || !args[slot].isNumber()) {
-    return kDefaultDeferTicks;
+    return kDefaultWholeTicks;
   }
   return static_cast<uint32_t>(args[slot].asNumber());
 }
@@ -154,7 +162,7 @@ inline Status execDeferEcho(void* hostData, ExecutionContext& ctx, Span<const Va
     handle.resolve(value);
     return Status::ok();
   }
-  world->defer(ctx.currentTick, ticksArg(args, kDeferEchoTicksSlot), handle, value, false);
+  world->defer(ctx.currentTick, wholeTicksArg(args, kDeferEchoTicksSlot), handle, value, false);
   return Status::ok();
 }
 
@@ -165,7 +173,7 @@ inline Status execDeferFail(void* hostData, ExecutionContext& ctx, Span<const Va
     handle.reject(kDeferFailCode);
     return Status::ok();
   }
-  world->defer(ctx.currentTick, ticksArg(args, kDeferFailTicksSlot), handle, kNilValue, true);
+  world->defer(ctx.currentTick, wholeTicksArg(args, kDeferFailTicksSlot), handle, kNilValue, true);
   return Status::ok();
 }
 
@@ -173,11 +181,17 @@ inline Value execFault(void*, ExecutionContext&, Span<const Value>) {
   return Value::error(ErrorCode::ScriptError);
 }
 
+inline Value execSignal(void*, ExecutionContext& ctx, Span<const Value> args) {
+  const uint32_t period = wholeTicksArg(args, kSignalPeriodSlot);
+  return ctx.currentTick % period == 0 ? Value::number(kSignalValue) : kNilValue;
+}
+
 } // namespace conformance_detail
 
 /**
  * Builds the conformance host-action binding table over `world`, one entry per
- * profile action in registry order: echo, emit, defer echo, defer fail, fault.
+ * profile action in registry order: echo, emit, defer echo, defer fail, fault,
+ * signal.
  * `world` must outlive every dispatch through the table.
  *
  * @param world - Deterministic world the deferred actions park their handles in.
@@ -192,6 +206,7 @@ makeConformanceHostActionBindings(ConformanceWorld& world) {
       {ConformanceHostActions::DeferFail.actionId, nullptr, nullptr, &world,
        &conformance_detail::execDeferFail},
       {ConformanceHostActions::Fault.actionId, &conformance_detail::execFault, nullptr, &world},
+      {ConformanceHostActions::Signal.actionId, &conformance_detail::execSignal, nullptr, &world},
   }};
 }
 
