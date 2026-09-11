@@ -1183,6 +1183,11 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
       ctx.currentRuleFuncId = resolveFrameRuleFuncId(program, frame);
       const Span<const Value> args(state.stack + (state.stackDepth - argc), argc);
       const Value result = action->execSync(action->hostData, ctx, args);
+      if (result.isErr()) {
+        // An err return is the sync body's fault channel: the call produces no
+        // action-return observation and faults the fiber with the body's code.
+        return fault(result.errorCode());
+      }
       if (surface.observer != nullptr) {
         surface.observer->onHostActionCall(ins.a, ins.c, args, result);
       }

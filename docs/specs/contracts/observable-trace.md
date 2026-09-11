@@ -4,23 +4,23 @@ The observable trace is a deterministic, line-oriented, ASCII record of a brain'
 externally visible effects across a tick schedule. The TypeScript device runtime
 (`packages/wodal`) generates the committed golden trace; the C++ VM
 (`cpp/test/trace-parity.test.cpp`) renders its own trace for the same program and
-schedule and byte-compares. This file is the cross-VM contract for what the trace
-records; the line grammar itself is defined and versioned in
-`packages/wodal/src/targets/microbit-v2/wendoo/observable-trace.ts`
-(`OBSERVABLE_TRACE_FORMAT_VERSION`) and mirrored by
-`cpp/hostkit/observable-trace.h`.
+schedule and byte-compares.
 
-This is a target-layer contract, not the core bytecode contract: it does not
-change `vm-contract.md`.
+The core half of the grammar -- the lexical rules, the value tokens, the three
+header lines, and the `tick` / `action` / `tile` / `fault` line kinds -- is
+specified in `external/wendoo-lang/docs/specs/contracts/observable-trace.md` and
+defined and versioned in
+`external/wendoo-lang/packages/conformance/src/trace.ts`. Read that first;
+everything here is the micro:bit-v2 extension on top of it.
 
-## Recorded effects
+This file is the cross-VM contract for the target-layer effects the micro:bit
+corpus records. Those extensions are defined and versioned in
+`packages/wodal/src/targets/microbit-v2/wendoo/observable-trace.ts` and mirrored
+by `cpp/hostkit/observable-trace.h`. They are a target-layer contract, not the
+core bytecode contract: they do not change `vm-contract.md`.
 
-- `tick <ordinal> time <bits> dt <bits>` - one think boundary. Numbers render as
-  IEEE-754 bit patterns (profile precision), never decimal.
-- `action <id> site <cs> args <argc> <vals> result <val>` - a synchronous
-  host-action call. Arguments are recorded as the VM passed them (pre-conversion).
-- `action <id> site <cs> args <argc> <vals> async` - an asynchronous host-action
-  dispatch (no result; the handle settles later).
+## Target-recorded effects
+
 - `port display set-pixel <xBits> <yBits> <brightnessBits>` - one pixel write that
   crossed the display device port, recorded with the post-conversion value (see
   below).
@@ -79,22 +79,17 @@ change `vm-contract.md`.
   system time and serial number are NOT in the trace (covered by the wire-format
   unit test). Receive needs no token - a fired receive sensor renders via the
   existing `action ... result` line.
-- `fault <fiberId> <errorCode>` - a fiber fault.
 
-Host-action ids and call-site ids render as minimal lowercase hex.
+Every `port` line's scalar fields render under the core lexical rules: integers
+as minimal lowercase hex, brain-observable numbers as IEEE-754 bit patterns at
+the profile precision (micro:bit-v2 is f32), and byte sequences quoted as core
+strings.
 
-A host-action argument that is an `Image` (or any non-native struct) renders in
-the `action ... <vals>` list as `struct <fieldCount> <value>...`: the field count
-in minimal lowercase hex followed by one value token per field slot, in slot
-order. A `Buffer`-typed field renders as `buffer <hex>` (two lowercase hex digits
-per byte). A `List` argument renders as `list <count> <value>...`: the element
-count in minimal lowercase hex followed by one value token per element, in order
-(empty for an empty list); `draw image`'s image argument is a `List<Image>`, so it
-renders this way. These value-token kinds are additive in format version 1;
-native-backed struct arguments do not render. The line grammar is defined and
-versioned in
-`packages/wodal/src/targets/microbit-v2/wendoo/observable-trace.ts` and mirrored
-by `cpp/hostkit/observable-trace.cpp`.
+Two core value-token kinds carry target payloads on this target. A host-action
+argument that is an `Image` (or any non-native struct) renders in the
+`action ... <vals>` list as a `struct` token, and `draw image`'s image argument
+is a `List<Image>`, so it renders as a `list` token of `struct` tokens. Both are
+core tokens; see the core contract for their exact shape.
 
 ## Port-crossing numeric conversion (pinned)
 

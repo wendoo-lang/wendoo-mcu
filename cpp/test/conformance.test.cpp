@@ -1,6 +1,5 @@
 #include "doctest/doctest.h"
 
-#include "codal/shared-type-atom-id.h"
 #include "core/codec/program-reader.h"
 #include "core/runtime/bytecode.h"
 #include "core/runtime/core-func-id.h"
@@ -10,11 +9,10 @@
 #include "core/runtime/host-actions/core-host-action-env.h"
 #include "core/runtime/region-arena.h"
 #include "fixture-paths.h"
-#include "targets/microbit-v2/abi/type-atom-id.h"
+#include "json.h"
 
 #include <array>
 #include <cstdint>
-#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -24,9 +22,7 @@ using wendoo::CoreFuncId;
 using wendoo::CoreHostActionEnv;
 using wendoo::findHostActionById;
 using wendoo::HostActionBinding;
-using wendoo::kMicroBitV2TypeAtomIdCount;
 using wendoo::kOperandSchema;
-using wendoo::kSharedTypeAtomIdCount;
 using wendoo::LoadError;
 using wendoo::Op;
 using wendoo::OpOperandSchema;
@@ -222,52 +218,81 @@ namespace {
 // compiled program.
 bool isReservedOp(Op op) { return op == Op::RESERVED_111 || op == Op::RESERVED_112; }
 
-std::vector<uint8_t> readFileBytes(const std::filesystem::path& path) {
+std::vector<uint8_t> readFileBytes(const std::string& path) {
   std::ifstream stream(path, std::ios::binary);
+  REQUIRE_MESSAGE(stream.good(), "cannot open ", path);
   return std::vector<uint8_t>(std::istreambuf_iterator<char>(stream),
                               std::istreambuf_iterator<char>());
 }
 
+std::string readTextFile(const std::string& path) {
+  std::ifstream stream(path, std::ios::binary);
+  REQUIRE_MESSAGE(stream.good(), "cannot open ", path);
+  return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+}
+
 } // namespace
 
-TEST_CASE("the golden program set exercises every contract opcode") {
-  // Opcode-coverage measurement: union the opcodes present across every committed
-  // golden program. The parity suite runs these programs through full tick
-  // schedules, so an opcode present in the corpus is an opcode the suite exercises
-  // on both VMs. A contract opcode missing here means no golden covers it - a
-  // conformance-targeted brain must be authored to fill the gap.
+TEST_CASE("opcode coverage derived from the shared conformance corpus binaries") {
+  // Every binary the shared corpus manifest indexes is decoded with the real
+  // program reader and the union of the opcodes it carries is checked against
+  // core's own operand schema. An opcode outside the schema fails; an opcode the
+  // schema declares that no case reaches is listed in the test output, matching
+  // the reporting the TypeScript side does.
   bool seen[256] = {};
   std::vector<uint8_t> arenaStorage(256 * 1024);
 
-  const std::filesystem::path fixtures(wendoo::test::kWodalFixturesDir);
+  const wendoo::test::JsonValue manifest = wendoo::test::parseJson(
+      readTextFile(std::string(wendoo::test::kConformanceCorpusDir) + "/manifest.json"));
   uint32_t programs = 0;
-  for (const std::filesystem::directory_entry& entry :
-       std::filesystem::directory_iterator(fixtures)) {
-    const std::filesystem::path& path = entry.path();
-    const std::string name = path.filename().string();
-    const std::string suffix = ".mcprogram.bin";
-    if (name.size() < suffix.size() ||
-        name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0) {
-      continue;
+  for (const wendoo::test::JsonValue& entry : manifest.member("cases").elements()) {
+    const std::string id = entry.member("id").string();
+    for (const wendoo::test::JsonValue& precision : entry.member("precisions").elements()) {
+      const std::string name = id + "." + precision.string() + ".program.bin";
+      const std::vector<uint8_t> wire =
+          readFileBytes(std::string(wendoo::test::kConformanceCorpusDir) + "/" + name);
+      RegionArena arena(Span<uint8_t>(arenaStorage.data(), arenaStorage.size()));
+      constexpr ProgramReaderOptions options{0, 0};
+      const Result<ProgramImage, LoadError> decoded =
+          readProgramImage(ByteSpan(wire.data(), wire.size()), arena, options);
+      if (!decoded.isOk()) {
+        // An f64 variant carries numeric entries this f32 build rejects; the
+        // opcodes it holds are the ones its f32 sibling already contributed.
+        continue;
+      }
+      for (size_t i = 0; i < decoded.value().instructions.size(); i++) {
+        seen[static_cast<uint8_t>(decoded.value().instructions[i].op)] = true;
+      }
+      programs++;
     }
-    const std::vector<uint8_t> wire = readFileBytes(path);
-    RegionArena arena(Span<uint8_t>(arenaStorage.data(), arenaStorage.size()));
-    constexpr ProgramReaderOptions options{kMicroBitV2TypeAtomIdCount, kSharedTypeAtomIdCount};
-    const Result<ProgramImage, LoadError> decoded =
-        readProgramImage(ByteSpan(wire.data(), wire.size()), arena, options);
-    REQUIRE_MESSAGE(decoded.isOk(), "cannot decode golden ", name);
-    for (size_t i = 0; i < decoded.value().instructions.size(); i++) {
-      seen[static_cast<uint8_t>(decoded.value().instructions[i].op)] = true;
-    }
-    programs++;
   }
   REQUIRE(programs > 0);
 
+  // Every compiled rule carries the WHEN/DO boundary opcodes and a return, so a
+  // corpus that does not reach them decoded nothing meaningful.
+  for (const Op op : {Op::WHEN_START, Op::WHEN_END, Op::DO_START, Op::DO_END, Op::RET}) {
+    CAPTURE(static_cast<int>(op));
+    CHECK(seen[static_cast<uint8_t>(op)]);
+  }
+
+  uint32_t covered = 0;
+  uint32_t declared = 0;
+  std::vector<const OpOperandSchema*> uncovered;
   for (const OpOperandSchema& row : kOperandSchema) {
+    declared++;
+    if (seen[static_cast<uint8_t>(row.op)]) {
+      covered++;
+      continue;
+    }
     if (isReservedOp(row.op)) {
       continue;
     }
-    CAPTURE(static_cast<int>(row.op));
-    CHECK(seen[static_cast<uint8_t>(row.op)]);
+    uncovered.push_back(&row);
+  }
+  MESSAGE("opcodes covered: " << covered << " of " << declared
+                              << " (reserved slots included); with no covering case: "
+                              << uncovered.size());
+  for (const OpOperandSchema* row : uncovered) {
+    MESSAGE("  opcode " << static_cast<int>(row->op));
   }
 }

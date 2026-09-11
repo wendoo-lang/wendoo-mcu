@@ -15,7 +15,9 @@ namespace wendoo {
  * positional arg buffer (argc slots; a missing optional slot is nil) valid
  * only for the duration of the call; `hostData` is the pointer the action
  * was registered with. The bound call site is
- * `ctx.currentCallSiteId`. Returns the value the call pushes back.
+ * `ctx.currentCallSiteId`. Returns the value the call pushes back, or an err
+ * value to fault the calling fiber with that error code instead: the faulting
+ * call pushes nothing and produces no action-return observation.
  */
 using HostActionExecSync = Value (*)(void* hostData, ExecutionContext& ctx, Span<const Value> args);
 

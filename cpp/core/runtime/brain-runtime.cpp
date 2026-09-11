@@ -244,6 +244,11 @@ Status BrainRuntime::think(mc_number_t currentTimeMs) {
   }
   inThink_ = true;
 
+  // Resume the waiters of every handle settled since the last round -- by a
+  // host body inside that round, or by an external callback out of band
+  // between thinks -- so they are runnable before this think's round opens.
+  scheduler_.drainCompletedHandles();
+
   // A requested page switch deactivates the current page and activates the
   // requested one before the tick's time is stamped.
   if (currentPageIndex_ != desiredPageIndex_) {
@@ -288,12 +293,8 @@ Status BrainRuntime::think(mc_number_t currentTimeMs) {
   }
 
   scheduler_.tick();
-  // Drain any handles a host body settled during the round: resume their
-  // waiters so they join the next round. An external callback may also have
-  // settled a handle out of band before this think; the same drain handles it.
-  scheduler_.drainCompletedHandles();
-  // Every registered System's think runs after the scheduler round (and its
-  // handle drain) and before the reclaim sweep, page-independent.
+  // Every registered System's think runs after the scheduler round and before
+  // the reclaim sweep, page-independent.
   const Status thinks = runSystemThinks();
   if (!thinks.isOk()) {
     inThink_ = false;

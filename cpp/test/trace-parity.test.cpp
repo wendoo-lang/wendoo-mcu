@@ -3806,7 +3806,7 @@ combineActionTable(
 }
 
 // Loads the draw-image fixture `name`, runs `tickCount` thinks at `tickMs` each
-// (settling the display lease before each think, as the device's pollDisplay
+// (settling the display lease after each think, as the device's pollDisplay
 // does), and byte-compares the rendered trace against the committed golden. The
 // draw env reaches the display, heap, and program; the writer's heap renders the
 // Image struct argument's slots in the async dispatch line.
@@ -3859,8 +3859,8 @@ void checkDrawFixture(const std::string& name, int tickCount, float tickMs) {
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -3873,7 +3873,7 @@ void checkDrawFixture(const std::string& name, int tickCount, float tickMs) {
 // and byte-compares the rendered trace against the committed golden. The
 // play-sound body reads the SoundEmoji argument's name string through the
 // image-backed heap; the play-tone body reads the speaker port straight off the
-// device ports. The speaker lease settles before each think, as pollSpeaker does
+// device ports. The speaker lease settles after each think, as pollSpeaker does
 // on device: a built-in sound on the pinned nominal-duration table, a tone on
 // its own duration.
 void checkSpeakerActionFixture(const std::string& name, int tickCount, float tickMs) {
@@ -3926,8 +3926,8 @@ void checkSpeakerActionFixture(const std::string& name, int tickCount, float tic
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.speaker.advancePlay(timeMs);
     hostLoop.tick();
+    microbit.speaker.advancePlay(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -3940,7 +3940,7 @@ void checkSpeakerActionFixture(const std::string& name, int tickCount, float tic
 // ctx.microbit.display.scrollText). Wires the native-struct receiver resolution
 // and the host-function table (with the draw and scroll envs) alongside the
 // core host actions (the on-page-entered sensor), runs `tickCount` thinks at
-// `tickMs` each (settling the display lease before each think, as the device's
+// `tickMs` each (settling the display lease after each think, as the device's
 // pollDisplay does), and byte-compares the rendered trace against the committed
 // golden.
 void checkUserTileDrawFixture(const std::string& name, int tickCount, float tickMs) {
@@ -4001,8 +4001,8 @@ void checkUserTileDrawFixture(const std::string& name, int tickCount, float tick
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -4015,7 +4015,7 @@ void checkUserTileDrawFixture(const std::string& name, int tickCount, float tick
 // function. Wires the native-struct receiver resolution and the host-function
 // table (with the play-sound and play-tone envs) alongside the core host actions
 // (the on-page-entered sensor), runs `tickCount` thinks at `tickMs` each,
-// settling the speaker lease before each think as the device's pollSpeaker does,
+// settling the speaker lease after each think as the device's pollSpeaker does,
 // and byte-compares the rendered trace against the committed golden. Every play
 // the fixture dispatches must last longer than `tickMs`.
 void checkUserTileSpeakerFixture(const std::string& name, int tickCount, float tickMs) {
@@ -4078,8 +4078,8 @@ void checkUserTileSpeakerFixture(const std::string& name, int tickCount, float t
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.speaker.advancePlay(timeMs);
     hostLoop.tick();
+    microbit.speaker.advancePlay(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -4426,17 +4426,17 @@ TEST_CASE("the display-scroll fixture byte-matches the golden observable trace")
   // Four 1100ms thinks mirror the wodal display-scroll oracle schedule: the
   // scroll dispatches async on tick 1, its handle resolves once the pinned
   // completion time passes, and the rule resumes and lights pixel (0,0) on tick
-  // 4. The scroll completion settles the handle out of band before each think,
-  // as the CODAL animation-complete event does on device; the think then drains
-  // it and resumes the waiter on the next round.
+  // 4. The scroll completion settles the handle out of band after each think,
+  // as the CODAL animation-complete event does on device; the next think drains
+  // it at entry and resumes the waiter for that think's round.
   float lastThinkTimeMs = 0;
   for (int i = 0; i < 4; i++) {
     const float timeMs = lastThinkTimeMs + 1100;
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -4496,8 +4496,8 @@ static void checkScrollWhenResultFixture(const std::string& name) {
   const float timeMs = 1100;
   microbit.clock.now = static_cast<uint32_t>(timeMs);
   writer.tick(1, timeMs, 0);
-  microbit.display.advanceScroll(timeMs);
   hostLoop.tick();
+  microbit.display.advanceScroll(timeMs);
   REQUIRE_FALSE(hostLoop.faulted());
 
   CHECK(sink.text() == golden);
@@ -4734,8 +4734,8 @@ TEST_CASE("the display-scroll-drop fixture byte-matches the golden observable tr
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -4796,8 +4796,8 @@ TEST_CASE("the display-scroll-background fixture byte-matches the golden observa
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -5009,8 +5009,8 @@ TEST_CASE("the async-parent-sequencing fixture byte-matches the golden observabl
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -5070,8 +5070,8 @@ TEST_CASE("the async-handle-backpressure fixture byte-matches the golden observa
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -5237,8 +5237,8 @@ TEST_CASE("the mixed-sync-async-child fixture byte-matches the golden observable
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -5409,8 +5409,8 @@ TEST_CASE("the managed-string-scroll fixture byte-matches the golden observable 
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }
@@ -5563,8 +5563,8 @@ void runTriggerModeParity(const std::string& name, const std::vector<TriggerMode
     microbit.clock.now = static_cast<uint32_t>(timeMs);
     writer.tick(static_cast<uint32_t>(i + 1), timeMs,
                 lastThinkTimeMs == 0 ? 0 : timeMs - lastThinkTimeMs);
-    microbit.display.advanceScroll(timeMs);
     hostLoop.tick();
+    microbit.display.advanceScroll(timeMs);
     REQUIRE_FALSE(hostLoop.faulted());
     lastThinkTimeMs = timeMs;
   }

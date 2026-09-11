@@ -9,6 +9,7 @@ add_executable(wendoo-tests
   byte-cursor.test.cpp
   bytecode.test.cpp
   conformance.test.cpp
+  conformance-corpus.test.cpp
   context-field.test.cpp
   control-flow.test.cpp
   core-func-id.test.cpp
@@ -63,6 +64,7 @@ get_filename_component(MC_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE
 target_compile_definitions(wendoo-tests PRIVATE
   MC_CORE_FIXTURES_DIR="${MC_REPO_ROOT}/external/wendoo-lang/packages/core/src/runtime/__fixtures__"
   MC_WODAL_FIXTURES_DIR="${MC_REPO_ROOT}/packages/wodal/src/targets/microbit-v2/wendoo/__fixtures__"
+  MC_CONFORMANCE_CORPUS_DIR="${MC_REPO_ROOT}/external/wendoo-lang/packages/conformance/corpus"
 )
 
 add_test(NAME wendoo-tests COMMAND wendoo-tests)

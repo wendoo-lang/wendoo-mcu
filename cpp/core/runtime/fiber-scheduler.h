@@ -212,8 +212,9 @@ public:
    * Drains every settled handle: for each, resumes the fibers waiting on it
    * (restoring their await sites, queuing a resolved value or a pending throw)
    * and then frees the handle. Resumed fibers enqueue as runnable, so they join
-   * the next round (the round-tick rule). Safe to call from the host loop after
-   * external callbacks have settled handles out of band. Mirrors the
+   * the next round (the round-tick rule). {@link BrainRuntime::think} calls it
+   * at think entry, so a handle settled out of band between thinks has its
+   * waiter runnable before the next round opens. Mirrors the
    * `onHandleCompleted` drain in
    * external/wendoo-lang/packages/core/src/runtime/vm.ts.
    */
