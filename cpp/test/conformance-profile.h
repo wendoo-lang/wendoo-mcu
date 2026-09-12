@@ -42,10 +42,14 @@ inline constexpr HostActionIds DeferFail{TARGET_ACTION_ID_BASE + 3, TARGET_FUNC_
 inline constexpr HostActionIds Fault{TARGET_ACTION_ID_BASE + 4, TARGET_FUNC_ID_BASE + 4};
 /** Presence-gated synchronous sensor delivering a value on the thinks its period divides. */
 inline constexpr HostActionIds Signal{TARGET_ACTION_ID_BASE + 5, TARGET_FUNC_ID_BASE + 5};
+/** Synchronous sensor returning its call site's read count since its page was activated. */
+inline constexpr HostActionIds Counter{TARGET_ACTION_ID_BASE + 6, TARGET_FUNC_ID_BASE + 6};
+/** Asynchronous actuator whose handle is cancelled after a stated tick count. */
+inline constexpr HostActionIds DeferCancel{TARGET_ACTION_ID_BASE + 7, TARGET_FUNC_ID_BASE + 7};
 } // namespace ConformanceHostActions
 
 /** Number of conformance host-action bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostActionBindingCount = 6;
+inline constexpr uint32_t kConformanceHostActionBindingCount = 8;
 
 /** Arg-buffer slot of the value argument of `echo`, `emit`, and `defer echo`. */
 inline constexpr uint32_t kConformanceValueSlot = 0;
@@ -59,6 +63,12 @@ inline constexpr uint32_t kDeferFailTicksSlot = 0;
 /** Arg-buffer slot of the whole-tick period of `signal`. */
 inline constexpr uint32_t kSignalPeriodSlot = 0;
 
+/** Arg-buffer slot of the whole-tick count of `defer cancel`. */
+inline constexpr uint32_t kDeferCancelTicksSlot = 0;
+
+/** Count `counter` holds at a just-reset call site; its first read returns one more. */
+inline constexpr mc_number_t kCounterStart = 0;
+
 /** Whole-tick count a deferred call waits, or a signal's period, when the argument carries none. */
 inline constexpr uint32_t kDefaultWholeTicks = 1;
 
@@ -67,6 +77,16 @@ inline constexpr mc_number_t kSignalValue = 0;
 
 /** Error code `defer fail` rejects its handle with. */
 inline constexpr ErrorCode kDeferFailCode = ErrorCode::HostError;
+
+/** How a deferred call settles the handle it was dispatched on. */
+enum class DeferredOutcome {
+  /** Resolve the handle to the value the call captured. */
+  Resolve,
+  /** Reject the handle with {@link kDeferFailCode}. */
+  Reject,
+  /** Cancel the handle. */
+  Cancel,
+};
 
 /**
  * Deterministic world the conformance host actions run against: the pending
@@ -81,9 +101,8 @@ inline constexpr ErrorCode kDeferFailCode = ErrorCode::HostError;
 class ConformanceWorld {
 public:
   /**
-   * Settles every deferred call due at or before `tick`, oldest dispatch first:
-   * a `defer echo` resolves its handle to the value it captured, a `defer fail`
-   * rejects its handle with {@link kDeferFailCode}.
+   * Settles every deferred call due at or before `tick`, oldest dispatch first,
+   * each by the outcome it was recorded with.
    *
    * @param tick - 1-based ordinal of the think about to run.
    */
@@ -99,10 +118,16 @@ public:
     }
     pending_ = rest;
     for (const Pending& entry : due) {
-      if (entry.rejects) {
+      switch (entry.outcome) {
+      case DeferredOutcome::Reject:
         entry.handle.reject(kDeferFailCode);
-      } else {
+        break;
+      case DeferredOutcome::Cancel:
+        entry.handle.cancel();
+        break;
+      case DeferredOutcome::Resolve:
         entry.handle.resolve(entry.value);
+        break;
       }
     }
   }
@@ -115,11 +140,11 @@ public:
    * @param ticks - Whole ticks between the dispatch and the settlement.
    * @param handle - Handle the deferred call was dispatched on.
    * @param value - Value a resolving settlement carries.
-   * @param rejects - True to reject the handle, false to resolve it.
+   * @param outcome - How the settlement settles the handle.
    */
   void defer(uint32_t dispatchTick, uint32_t ticks, AsyncHandle handle, const Value& value,
-             bool rejects) {
-    pending_.push_back(Pending{dispatchTick + ticks, handle, value, rejects});
+             DeferredOutcome outcome) {
+    pending_.push_back(Pending{dispatchTick + ticks, handle, value, outcome});
   }
 
 private:
@@ -127,7 +152,7 @@ private:
     uint32_t dueTick;
     AsyncHandle handle;
     Value value;
-    bool rejects;
+    DeferredOutcome outcome;
   };
 
   std::vector<Pending> pending_;
@@ -162,7 +187,8 @@ inline Status execDeferEcho(void* hostData, ExecutionContext& ctx, Span<const Va
     handle.resolve(value);
     return Status::ok();
   }
-  world->defer(ctx.currentTick, wholeTicksArg(args, kDeferEchoTicksSlot), handle, value, false);
+  world->defer(ctx.currentTick, wholeTicksArg(args, kDeferEchoTicksSlot), handle, value,
+               DeferredOutcome::Resolve);
   return Status::ok();
 }
 
@@ -173,7 +199,20 @@ inline Status execDeferFail(void* hostData, ExecutionContext& ctx, Span<const Va
     handle.reject(kDeferFailCode);
     return Status::ok();
   }
-  world->defer(ctx.currentTick, wholeTicksArg(args, kDeferFailTicksSlot), handle, kNilValue, true);
+  world->defer(ctx.currentTick, wholeTicksArg(args, kDeferFailTicksSlot), handle, kNilValue,
+               DeferredOutcome::Reject);
+  return Status::ok();
+}
+
+inline Status execDeferCancel(void* hostData, ExecutionContext& ctx, Span<const Value> args,
+                              AsyncHandle handle) {
+  ConformanceWorld* world = static_cast<ConformanceWorld*>(hostData);
+  if (world == nullptr) {
+    handle.cancel();
+    return Status::ok();
+  }
+  world->defer(ctx.currentTick, wholeTicksArg(args, kDeferCancelTicksSlot), handle, kNilValue,
+               DeferredOutcome::Cancel);
   return Status::ok();
 }
 
@@ -186,12 +225,25 @@ inline Value execSignal(void*, ExecutionContext& ctx, Span<const Value> args) {
   return ctx.currentTick % period == 0 ? Value::number(kSignalValue) : kNilValue;
 }
 
+inline void counterPageEntered(void*, ExecutionContext& ctx) {
+  ctx.setCallSiteState(Value::number(kCounterStart));
+}
+
+inline Value execCounter(void*, ExecutionContext& ctx, Span<const Value>) {
+  const mc_number_t stored = ctx.hasCallSiteState() && ctx.callSiteState().isNumber()
+                                 ? ctx.callSiteState().asNumber()
+                                 : kCounterStart;
+  const Value next = Value::number(stored + 1);
+  ctx.setCallSiteState(next);
+  return next;
+}
+
 } // namespace conformance_detail
 
 /**
  * Builds the conformance host-action binding table over `world`, one entry per
  * profile action in registry order: echo, emit, defer echo, defer fail, fault,
- * signal.
+ * signal, counter, defer cancel.
  * `world` must outlive every dispatch through the table.
  *
  * @param world - Deterministic world the deferred actions park their handles in.
@@ -207,6 +259,10 @@ makeConformanceHostActionBindings(ConformanceWorld& world) {
        &conformance_detail::execDeferFail},
       {ConformanceHostActions::Fault.actionId, &conformance_detail::execFault, nullptr, &world},
       {ConformanceHostActions::Signal.actionId, &conformance_detail::execSignal, nullptr, &world},
+      {ConformanceHostActions::Counter.actionId, &conformance_detail::execCounter,
+       &conformance_detail::counterPageEntered, &world},
+      {ConformanceHostActions::DeferCancel.actionId, nullptr, nullptr, &world,
+       &conformance_detail::execDeferCancel},
   }};
 }
 
