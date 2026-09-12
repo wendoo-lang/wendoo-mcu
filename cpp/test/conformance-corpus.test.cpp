@@ -212,11 +212,13 @@ std::string runTrace(const std::vector<uint8_t>& wire, const std::vector<float>&
   const auto coreBindings = wendoo::makeCoreHostActionBindings(coreEnv);
   const auto conformanceBindings = wendoo::test::makeConformanceHostActionBindings(world);
   ConformanceActionTable actions = combineActionTable(coreBindings, conformanceBindings);
+  const auto hostFuncs = wendoo::test::makeConformanceHostFuncBindings(world);
 
   ExecutionContext ctx;
   RuntimeSurface surface{&ctx, {actions.data(), actions.size()}, &tap, &heap};
   surface.rng = &rng;
   surface.types = &types;
+  surface.hostFunctions = {hostFuncs.data(), hostFuncs.size()};
 
   FiberScheduler scheduler(image, surface, arena, kConformanceCaps);
   BrainRuntime brain(image, scheduler, surface);
@@ -260,5 +262,6 @@ TEST_CASE("every shared corpus case replays to its committed observable trace") 
     CHECK(runTrace(wire, entry.schedule, manifest.profileId) == golden);
     replayed++;
   }
-  CHECK(replayed > 0);
+  // Every manifest case declares this VM's precision.
+  CHECK(replayed == manifest.cases.size());
 }

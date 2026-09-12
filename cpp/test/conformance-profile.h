@@ -10,6 +10,7 @@
 #include "core/runtime/execution-context.h"
 #include "core/runtime/handle-table.h"
 #include "core/runtime/host-action.h"
+#include "core/runtime/host-function.h"
 #include "core/runtime/result.h"
 #include "core/runtime/value.h"
 
@@ -46,12 +47,32 @@ inline constexpr HostActionIds Signal{TARGET_ACTION_ID_BASE + 5, TARGET_FUNC_ID_
 inline constexpr HostActionIds Counter{TARGET_ACTION_ID_BASE + 6, TARGET_FUNC_ID_BASE + 6};
 /** Asynchronous actuator whose handle is cancelled after a stated tick count. */
 inline constexpr HostActionIds DeferCancel{TARGET_ACTION_ID_BASE + 7, TARGET_FUNC_ID_BASE + 7};
+/** Asynchronous sensor whose handle resolves to its value argument after a stated tick count. */
+inline constexpr HostActionIds DeferRead{TARGET_ACTION_ID_BASE + 8, TARGET_FUNC_ID_BASE + 8};
 } // namespace ConformanceHostActions
 
-/** Number of conformance host-action bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostActionBindingCount = 8;
+/**
+ * Stable funcIds of the conformance profile's operator overloads, continuing
+ * the target partition offsets {@link ConformanceHostActions} allocates from.
+ * Mirrors `ConformanceOperators` in
+ * external/wendoo-lang/packages/conformance/src/profile.ts; the ids are
+ * wire-stable, so never renumber or reuse one.
+ */
+namespace ConformanceOperators {
+/**
+ * Asynchronous infix `defer plus`, resolving to the sum of its two operands one
+ * tick after its dispatch.
+ */
+inline constexpr uint32_t DeferAdd = TARGET_FUNC_ID_BASE + 9;
+} // namespace ConformanceOperators
 
-/** Arg-buffer slot of the value argument of `echo`, `emit`, and `defer echo`. */
+/** Number of conformance host-action bindings the profile registers. */
+inline constexpr uint32_t kConformanceHostActionBindingCount = 9;
+
+/** Number of conformance host-function bindings the profile registers. */
+inline constexpr uint32_t kConformanceHostFuncBindingCount = 1;
+
+/** Arg-buffer slot of the value argument of `echo`, `emit`, `defer echo`, and `defer read`. */
 inline constexpr uint32_t kConformanceValueSlot = 0;
 
 /** Arg-buffer slot of the whole-tick count of `defer echo`. */
@@ -65,6 +86,15 @@ inline constexpr uint32_t kSignalPeriodSlot = 0;
 
 /** Arg-buffer slot of the whole-tick count of `defer cancel`. */
 inline constexpr uint32_t kDeferCancelTicksSlot = 0;
+
+/** Arg-buffer slot of the whole-tick count of `defer read`. */
+inline constexpr uint32_t kDeferReadTicksSlot = 1;
+
+/** Arg-buffer slot of the left operand of a binary operator overload. */
+inline constexpr uint32_t kOperatorLhsSlot = 0;
+
+/** Arg-buffer slot of the right operand of a binary operator overload. */
+inline constexpr uint32_t kOperatorRhsSlot = 1;
 
 /** Count `counter` holds at a just-reset call site; its first read returns one more. */
 inline constexpr mc_number_t kCounterStart = 0;
@@ -216,6 +246,47 @@ inline Status execDeferCancel(void* hostData, ExecutionContext& ctx, Span<const 
   return Status::ok();
 }
 
+inline Status execDeferRead(void* hostData, ExecutionContext& ctx, Span<const Value> args,
+                            AsyncHandle handle) {
+  ConformanceWorld* world = static_cast<ConformanceWorld*>(hostData);
+  const Value value = valueArg(args, kConformanceValueSlot);
+  if (world == nullptr) {
+    handle.resolve(value);
+    return Status::ok();
+  }
+  world->defer(ctx.currentTick, wholeTicksArg(args, kDeferReadTicksSlot), handle, value,
+               DeferredOutcome::Resolve);
+  return Status::ok();
+}
+
+/** Whether `value` carries a number that is not a NaN. */
+inline bool isValidNumber(const Value& value) {
+  return value.isNumber() && value.asNumber() == value.asNumber();
+}
+
+/** The sum of the two operand slots; nil when either operand or the sum is not a number. */
+inline Value operandSum(Span<const Value> args) {
+  const Value lhs = valueArg(args, kOperatorLhsSlot);
+  const Value rhs = valueArg(args, kOperatorRhsSlot);
+  if (!isValidNumber(lhs) || !isValidNumber(rhs)) {
+    return kNilValue;
+  }
+  const mc_number_t sum = lhs.asNumber() + rhs.asNumber();
+  return sum == sum ? Value::number(sum) : kNilValue;
+}
+
+inline Status execDeferAdd(void* hostData, ExecutionContext& ctx, Span<const Value> args,
+                           AsyncHandle handle) {
+  ConformanceWorld* world = static_cast<ConformanceWorld*>(hostData);
+  const Value sum = operandSum(args);
+  if (world == nullptr) {
+    handle.resolve(sum);
+    return Status::ok();
+  }
+  world->defer(ctx.currentTick, kDefaultWholeTicks, handle, sum, DeferredOutcome::Resolve);
+  return Status::ok();
+}
+
 inline Value execFault(void*, ExecutionContext&, Span<const Value>) {
   return Value::error(ErrorCode::ScriptError);
 }
@@ -243,7 +314,7 @@ inline Value execCounter(void*, ExecutionContext& ctx, Span<const Value>) {
 /**
  * Builds the conformance host-action binding table over `world`, one entry per
  * profile action in registry order: echo, emit, defer echo, defer fail, fault,
- * signal, counter, defer cancel.
+ * signal, counter, defer cancel, defer read.
  * `world` must outlive every dispatch through the table.
  *
  * @param world - Deterministic world the deferred actions park their handles in.
@@ -263,6 +334,22 @@ makeConformanceHostActionBindings(ConformanceWorld& world) {
        &conformance_detail::counterPageEntered, &world},
       {ConformanceHostActions::DeferCancel.actionId, nullptr, nullptr, &world,
        &conformance_detail::execDeferCancel},
+      {ConformanceHostActions::DeferRead.actionId, nullptr, nullptr, &world,
+       &conformance_detail::execDeferRead},
+  }};
+}
+
+/**
+ * Builds the conformance host-function binding table over `world`, one entry
+ * per profile operator overload: `defer plus`. `world` must outlive every
+ * dispatch through the table.
+ *
+ * @param world - Deterministic world the deferred overloads park their handles in.
+ */
+inline std::array<TargetHostFuncBinding, kConformanceHostFuncBindingCount>
+makeConformanceHostFuncBindings(ConformanceWorld& world) {
+  return {{
+      {ConformanceOperators::DeferAdd, nullptr, &world, &conformance_detail::execDeferAdd},
   }};
 }
 
