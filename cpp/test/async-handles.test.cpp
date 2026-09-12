@@ -130,6 +130,27 @@ Status execAsyncResolveNow(void* hostData, ExecutionContext&, Span<const Value> 
   return Status::ok();
 }
 
+/**
+ * Captures the call-site context an async host function body observes, and the
+ * status the body returns.
+ */
+struct CallSiteProbe {
+  Status result = Status::ok();
+  uint32_t seenCallSiteId = wendoo::kNoCallSiteId;
+  uint32_t seenRuleFuncId = wendoo::kNoFuncId;
+};
+
+// An async function that records the bound call site and rule, resolves its
+// handle, and returns the probe's configured status.
+Status execAsyncProbeCallSite(void* hostData, ExecutionContext& ctx, Span<const Value>,
+                              AsyncHandle handle) {
+  CallSiteProbe& probe = *static_cast<CallSiteProbe*>(hostData);
+  probe.seenCallSiteId = ctx.currentCallSiteId;
+  probe.seenRuleFuncId = ctx.currentRuleFuncId;
+  handle.resolve(wendoo::kNilValue);
+  return probe.result;
+}
+
 Value execPump(void* hostData, ExecutionContext& ctx, Span<const Value>) {
   static_cast<AsyncSettleScheduler*>(hostData)->pump(ctx.currentTick);
   return wendoo::kVoidValue;
@@ -388,6 +409,83 @@ TEST_CASE("AWAIT on an already-resolved handle resumes inline in the same slice"
   REQUIRE(brain.think(16.0f).isOk());
   REQUIRE(fx.ctx.variables[0].isNumber());
   CHECK(fx.ctx.variables[0].asNumber() == 7.0f);
+}
+
+TEST_CASE("HOST_CALL_ASYNC binds the call site and rule for its body and clears them after") {
+  constexpr uint32_t kProbeFnId = 1502;
+  constexpr uint32_t kCallSiteId = 7;
+  ProgramBuilder b;
+  // func 0 is a rule entry dispatching the probe under call site 7.
+  b.beginFunction().instr(Op::HOST_CALL_ASYNC, kProbeFnId, 0, kCallSiteId).instr(Op::RET);
+  b.ruleFunc(0);
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  std::array<uint8_t, 4096> handleBytes{};
+  RegionArena handleArena(Span<uint8_t>(handleBytes.data(), handleBytes.size()));
+  HandleTable handles(handleArena, 2);
+  CallSiteProbe probe;
+  const TargetHostFuncBinding hostFns[1] = {{kProbeFnId, nullptr, &probe, &execAsyncProbeCallSite}};
+  // Seeded off the no-binding sentinels so the post-call clear is observable.
+  ExecutionContext ctx;
+  ctx.currentCallSiteId = 99;
+  ctx.currentRuleFuncId = 99;
+  RuntimeSurface surface{&ctx, {}, nullptr};
+  surface.handles = &handles;
+  surface.hostFunctions = {hostFns, 1};
+
+  SUBCASE("a successful body") {
+    Machine machine;
+    const RunResult result = runProgram(machine, image, {}, 10, surface);
+    REQUIRE(result.status == RunStatus::Done);
+  }
+  SUBCASE("a failing body") {
+    probe.result = Status::fail(ErrorCode::HostError);
+    Machine machine;
+    const RunResult result = runProgram(machine, image, {}, 10, surface);
+    REQUIRE(result.status == RunStatus::Fault);
+    CHECK(result.error == ErrorCode::HostError);
+  }
+
+  CHECK(probe.seenCallSiteId == kCallSiteId);
+  CHECK(probe.seenRuleFuncId == 0);
+  CHECK(ctx.currentCallSiteId == wendoo::kNoCallSiteId);
+  CHECK(ctx.currentRuleFuncId == wendoo::kNoFuncId);
+}
+
+TEST_CASE("HOST_ACTION_CALL_ASYNC leaves the context unbound when its handle cannot be allocated") {
+  ProgramBuilder b;
+  b.beginFunction().instr(Op::HOST_ACTION_CALL_ASYNC, kAsyncActionId, 0, 0).instr(Op::RET);
+  b.ruleFunc(0);
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  // An uncapped action skips the capacity check; an arena too small for a
+  // handle slot then fails the allocation itself.
+  std::array<uint8_t, 1> handleBytes{};
+  RegionArena handleArena(Span<uint8_t>(handleBytes.data(), handleBytes.size()));
+  HandleTable handles(handleArena, 2);
+  CallSiteProbe probe;
+  HostActionBinding asyncAction{kAsyncActionId, nullptr, nullptr, &probe, &execAsyncProbeCallSite};
+  asyncAction.uncappedHandles = true;
+  const HostActionBinding actions[1] = {asyncAction};
+  std::array<uint8_t, 256> ctxBytes{};
+  RegionArena ctxArena(Span<uint8_t>(ctxBytes.data(), ctxBytes.size()));
+  ExecutionContext ctx;
+  REQUIRE(ctx.bindSlots(ctxArena, 0, 1));
+  // Seeded off the no-binding sentinels so any bind is observable.
+  ctx.currentCallSiteId = 99;
+  ctx.currentRuleFuncId = 99;
+  RuntimeSurface surface{&ctx, {actions, 1}, nullptr};
+  surface.handles = &handles;
+
+  Machine machine;
+  const RunResult result = runProgram(machine, image, {}, 10, surface);
+  REQUIRE(result.status == RunStatus::Fault);
+  CHECK(result.error == ErrorCode::StackOverflow);
+  CHECK(probe.seenCallSiteId == wendoo::kNoCallSiteId);
+  CHECK(ctx.currentCallSiteId == 99);
+  CHECK(ctx.currentRuleFuncId == 99);
 }
 
 TEST_CASE("AWAIT inside a sync action frame faults ScriptError") {

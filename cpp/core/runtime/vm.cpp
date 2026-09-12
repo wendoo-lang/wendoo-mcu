@@ -1183,6 +1183,8 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
       ctx.currentRuleFuncId = resolveFrameRuleFuncId(program, frame);
       const Span<const Value> args(state.stack + (state.stackDepth - argc), argc);
       const Value result = action->execSync(action->hostData, ctx, args);
+      ctx.currentCallSiteId = kNoCallSiteId;
+      ctx.currentRuleFuncId = kNoFuncId;
       if (result.isErr()) {
         // An err return is the sync body's fault channel: the call produces no
         // action-return observation and faults the fiber with the body's code.
@@ -1192,8 +1194,6 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
         surface.observer->onHostActionCall(ins.a, ins.c, args, result);
       }
       state.stackDepth -= argc;
-      ctx.currentCallSiteId = kNoCallSiteId;
-      ctx.currentRuleFuncId = kNoFuncId;
       if (!pushValue(state, result)) {
         return fault(ErrorCode::StackOverflow);
       }
@@ -1243,10 +1243,16 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
         return fault(ErrorCode::StackOverflow);
       }
       // The arg view is valid only for the call; the body copies what it
-      // retains. A failing body rolls back the handle and faults.
+      // retains. The body runs with its call site bound. A failing body rolls
+      // back the handle and faults.
       const Span<const Value> args(state.stack + (state.stackDepth - argc), argc);
-      const Status status = binding->execAsync(binding->hostData, *surface.context, args,
-                                               AsyncHandle{surface.handles, handleId});
+      ExecutionContext& ctx = *surface.context;
+      ctx.currentCallSiteId = ins.c;
+      ctx.currentRuleFuncId = resolveFrameRuleFuncId(program, frame);
+      const Status status =
+          binding->execAsync(binding->hostData, ctx, args, AsyncHandle{surface.handles, handleId});
+      ctx.currentCallSiteId = kNoCallSiteId;
+      ctx.currentRuleFuncId = kNoFuncId;
       if (!status.isOk()) {
         surface.handles->deleteHandle(handleId);
         return fault(status.error());
@@ -1298,13 +1304,13 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
         return RunResult::yielded();
       }
       clearHandleBackpressure(state);
-      ExecutionContext& ctx = *surface.context;
-      ctx.currentCallSiteId = ins.c;
-      ctx.currentRuleFuncId = resolveFrameRuleFuncId(program, frame);
       const uint32_t handleId = surface.handles->createPending(capped);
       if (handleId == kNoHandleId) {
         return fault(ErrorCode::StackOverflow);
       }
+      ExecutionContext& ctx = *surface.context;
+      ctx.currentCallSiteId = ins.c;
+      ctx.currentRuleFuncId = resolveFrameRuleFuncId(program, frame);
       const Span<const Value> args(state.stack + (state.stackDepth - argc), argc);
       const Status status =
           action->execAsync(action->hostData, ctx, args, AsyncHandle{surface.handles, handleId});

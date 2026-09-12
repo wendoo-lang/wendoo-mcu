@@ -1210,6 +1210,42 @@ TEST_CASE("HOST_ACTION_CALL faults StackUnderflow when argc exceeds the stack") 
   CHECK(result.site.pc == 1);
 }
 
+namespace {
+
+// A sync host action whose body faults through its err return.
+Value execErrAction(void*, wendoo::ExecutionContext&, Span<const Value>) {
+  return Value::error(ErrorCode::HostError);
+}
+
+} // namespace
+
+TEST_CASE("HOST_ACTION_CALL clears the bound call site and rule when its body returns err") {
+  ProgramBuilder b;
+  b.beginFunction().instr(Op::HOST_ACTION_CALL, 7, 0, 5).instr(Op::RET);
+  b.ruleFunc(0);
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  const wendoo::HostActionBinding bindings[1] = {{7, &execErrAction, nullptr, nullptr}};
+  std::array<uint8_t, 256> ctxStorage;
+  wendoo::RegionArena ctxArena(Span<uint8_t>(ctxStorage.data(), ctxStorage.size()));
+  wendoo::ExecutionContext ctx;
+  REQUIRE(ctx.bindSlots(ctxArena, 0, 6));
+  // Seeded off the no-binding sentinels so the post-call clear is observable.
+  ctx.currentCallSiteId = 99;
+  ctx.currentRuleFuncId = 99;
+  wendoo::RuntimeSurface surface;
+  surface.context = &ctx;
+  surface.actions = Span<const wendoo::HostActionBinding>(bindings, 1);
+
+  Machine machine;
+  const RunResult result = runProgram(machine, image, {}, 1000, surface);
+  REQUIRE(result.status == RunStatus::Fault);
+  CHECK(result.error == ErrorCode::HostError);
+  CHECK(ctx.currentCallSiteId == wendoo::kNoCallSiteId);
+  CHECK(ctx.currentRuleFuncId == wendoo::kNoFuncId);
+}
+
 TEST_CASE("HOST_ACTION_CALL with a registered action but no context faults HostError") {
   ProgramBuilder b;
   b.beginFunction().instr(Op::HOST_ACTION_CALL, 7, 0, 0).instr(Op::RET);
