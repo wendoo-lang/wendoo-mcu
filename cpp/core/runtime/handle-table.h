@@ -254,6 +254,27 @@ public:
   }
 
   /**
+   * Drops every live handle, frees its waiter nodes, and empties the completed
+   * queue, releasing the whole cap accounting. A pending handle is dropped, not
+   * settled: no waiter is resumed and no completion is reported. Safe to call
+   * more than once. Mirrors `HandleTable.clear` in
+   * external/wendoo-lang/packages/core/src/runtime/vm-types.ts.
+   */
+  void clear() {
+    handles_.forEachLive([this](Handle& h) {
+      for (HandleWaiter* cur = h.waitersHead; cur != nullptr;) {
+        HandleWaiter* next = cur->next;
+        waiters_.free(cur);
+        cur = next;
+      }
+      handles_.free(&h);
+    });
+    cappedCount_ = 0;
+    completedHead_ = nullptr;
+    completedTail_ = nullptr;
+  }
+
+  /**
    * Marks every live handle's settled value into `marker`: a resolved handle
    * holds its result until a waiter consumes it, so it is a collection root.
    */

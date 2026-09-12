@@ -40,7 +40,7 @@ using HostActionPageHook = void (*)(void* hostData, ExecutionContext& ctx);
 
 /**
  * One registered host action: its stable action id, the synchronous body,
- * the optional page-activation hook, the opaque pointer passed back to them,
+ * the optional lifecycle hooks, the opaque pointer passed back to them,
  * and the optional asynchronous body. An action is sync ({@link execSync} set,
  * serviced by `HOST_ACTION_CALL`) or async ({@link execAsync} set, serviced by
  * `HOST_ACTION_CALL_ASYNC`); the opcode validates the matching body is present.
@@ -55,7 +55,7 @@ struct HostActionBinding {
   /** Hook run on page activation for each of the action's call sites, or null. */
   HostActionPageHook onPageEntered;
 
-  /** Opaque pointer handed to {@link execSync}, {@link execAsync}, and {@link onPageEntered}. */
+  /** Opaque pointer handed to the bodies and lifecycle hooks. */
   void* hostData;
 
   /** Asynchronous body, or null when the action is synchronous. */
@@ -70,6 +70,22 @@ struct HostActionBinding {
    * in external/wendoo-lang/packages/core/src/runtime/context.ts.
    */
   bool uncappedHandles = false;
+
+  /**
+   * Hook run exactly once per (brain instance, call site), on the first
+   * activation that allocates the call site, before {@link onPageEntered}
+   * fires for the same activation. Null when the action has none. Mirrors
+   * `HostActionBinding.onInitialized` in
+   * external/wendoo-lang/packages/core/src/runtime/context.ts.
+   */
+  HostActionPageHook onInitialized = nullptr;
+
+  /**
+   * Hook run on page deactivation for each of the action's call sites, or
+   * null. Mirrors `HostActionBinding.onPageExited` in
+   * external/wendoo-lang/packages/core/src/runtime/context.ts.
+   */
+  HostActionPageHook onPageExited = nullptr;
 };
 
 /**

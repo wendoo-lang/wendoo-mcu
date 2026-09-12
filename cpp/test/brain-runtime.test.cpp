@@ -3,15 +3,19 @@
 #include "core/runtime/brain-runtime.h"
 #include "core/runtime/execution-context.h"
 #include "core/runtime/fiber-scheduler.h"
+#include "core/runtime/handle-table.h"
 #include "core/runtime/host-action.h"
+#include "core/runtime/host-function.h"
 #include "core/runtime/value.h"
 #include "core/runtime/vm.h"
 #include "vm-harness.h"
 
 #include <array>
 #include <cstdint>
+#include <string>
 #include <vector>
 
+using wendoo::AsyncHandle;
 using wendoo::BrainRuntime;
 using wendoo::ErrorCode;
 using wendoo::ExecutionContext;
@@ -25,6 +29,7 @@ using wendoo::RegionArena;
 using wendoo::RuntimeSurface;
 using wendoo::Span;
 using wendoo::Status;
+using wendoo::TargetHostFuncBinding;
 using wendoo::Value;
 using wendoo::VmObserver;
 
@@ -205,6 +210,145 @@ TEST_CASE("page activation runs each call site's page-entered hook bound to it")
 
 namespace {
 
+/**
+ * Appends one host-action lifecycle observation to `log` as a kind letter
+ * plus the bound call-site id digit: 'i' initialized, 'e' page entered,
+ * 'x' page exited, 'c' body dispatched.
+ */
+void logEvent(void* hostData, char kind, uint32_t callSiteId) {
+  std::string& log = *static_cast<std::string*>(hostData);
+  log += kind;
+  log += static_cast<char>('0' + callSiteId);
+}
+
+void logInitialized(void* hostData, ExecutionContext& ctx) {
+  logEvent(hostData, 'i', ctx.currentCallSiteId);
+}
+
+void logPageEntered(void* hostData, ExecutionContext& ctx) {
+  logEvent(hostData, 'e', ctx.currentCallSiteId);
+}
+
+void logPageExited(void* hostData, ExecutionContext& ctx) {
+  logEvent(hostData, 'x', ctx.currentCallSiteId);
+}
+
+Value execLogCall(void* hostData, ExecutionContext& ctx, Span<const Value>) {
+  logEvent(hostData, 'c', ctx.currentCallSiteId);
+  return wendoo::kVoidValue;
+}
+
+/** The fully-hooked logging registration for action 1 over `log`. */
+HostActionBinding hookedLogBinding(std::string& log) {
+  HostActionBinding binding{1, &execLogCall, &logPageEntered, &log};
+  binding.onInitialized = &logInitialized;
+  binding.onPageExited = &logPageExited;
+  return binding;
+}
+
+} // namespace
+
+TEST_CASE("activation runs each host call site's initializer once, before its entered hook") {
+  ProgramBuilder b;
+  b.poolString("page-id");
+  // Two call sites of the same action on one page: the initializer and the
+  // entered hook run per call site, in call-site order, interleaved.
+  b.beginPage(0).pageHostCallSite(0, 1).pageHostCallSite(1, 1);
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  std::string log;
+  const HostActionBinding bindings[1] = {hookedLogBinding(log)};
+  ExecutionContext ctx;
+  RuntimeSurface surface{&ctx, {bindings, 1}, nullptr};
+  SchedulerStorage pools;
+  FiberScheduler scheduler(image, surface, pools.arena, wendoo::test::kDeviceProfileCaps);
+  BrainRuntime brain(image, scheduler, surface);
+  REQUIRE(brain.startup().isOk());
+
+  CHECK(log == "i0e0i1e1");
+  CHECK(ctx.currentCallSiteId == kNoCallSiteId);
+}
+
+TEST_CASE("a page transition runs exited hooks, then the new page's hooks, then its rules") {
+  ProgramBuilder b;
+  b.poolString("page-0");
+  b.poolString("page-1");
+  // funcId 0: page 1's root rule, dispatching action 1 at call site 1.
+  b.beginFunction().instr(Op::HOST_ACTION_CALL, 1, 0, 1).instr(Op::RET);
+  b.ruleFunc(0);
+  // Each page also carries a call site of hookless action 2, which must pass
+  // through activation and deactivation without effect.
+  b.beginPage(0).pageHostCallSite(0, 1).pageHostCallSite(2, 2);
+  b.beginPage(1).pageRoot(0).pageHostCallSite(1, 1).pageHostCallSite(3, 2);
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  std::string log;
+  const HostActionBinding bindings[2] = {hookedLogBinding(log), {2, &execNoop, nullptr, nullptr}};
+  ExecutionContext ctx;
+  RuntimeSurface surface{&ctx, {bindings, 2}, nullptr};
+  SchedulerStorage pools;
+  FiberScheduler scheduler(image, surface, pools.arena, wendoo::test::kDeviceProfileCaps);
+  BrainRuntime brain(image, scheduler, surface);
+  REQUIRE(brain.startup().isOk());
+  CHECK(log == "i0e0");
+
+  // Switching pages runs the old page's exited hook, then the new page's
+  // initializer and entered hooks, and only then the new page's rules.
+  log.clear();
+  brain.requestPageChange(1);
+  REQUIRE(brain.think(16.0f).isOk());
+  CHECK(log == "x0i1e1c1");
+
+  // Switching back re-enters call site 0 without re-running its initializer:
+  // the initializer fires once per call site for the brain's lifetime.
+  log.clear();
+  brain.requestPageChange(0);
+  REQUIRE(brain.think(32.0f).isOk());
+  CHECK(log == "x1e0");
+  CHECK(ctx.currentCallSiteId == kNoCallSiteId);
+}
+
+TEST_CASE("a reset call site re-runs its initializer on the next activation") {
+  ProgramBuilder b;
+  b.poolString("page-0");
+  b.poolString("page-1");
+  // Two hooked call sites on page 0; page 1 is bare, so a round trip through it
+  // deactivates and re-activates both of page 0's call sites.
+  b.beginPage(0).pageHostCallSite(0, 1).pageHostCallSite(1, 1);
+  b.beginPage(1);
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  std::string log;
+  const HostActionBinding bindings[1] = {hookedLogBinding(log)};
+  ExecutionContext ctx;
+  RuntimeSurface surface{&ctx, {bindings, 1}, nullptr};
+  SchedulerStorage pools;
+  FiberScheduler scheduler(image, surface, pools.arena, wendoo::test::kDeviceProfileCaps);
+  BrainRuntime brain(image, scheduler, surface);
+  REQUIRE(brain.startup().isOk());
+  REQUIRE(log == "i0e0i1e1");
+
+  ctx.resetCallSite(0);
+
+  log.clear();
+  brain.requestPageChange(1);
+  REQUIRE(brain.think(16.0f).isOk());
+  REQUIRE(log == "x0x1");
+
+  // Re-activating page 0 re-runs only the reset call site's initializer; call
+  // site 1 keeps its spent gate and gets its entered hook alone.
+  log.clear();
+  brain.requestPageChange(0);
+  REQUIRE(brain.think(32.0f).isOk());
+  CHECK(log == "i0e0e1");
+  CHECK(ctx.currentCallSiteId == kNoCallSiteId);
+}
+
+namespace {
+
 /** Host data of {@link execReenterThink}: the runtime to re-enter and the result. */
 struct ReentryProbe {
   BrainRuntime* brain;
@@ -340,4 +484,125 @@ TEST_CASE(
     CHECK(scheduler.liveCount() <= 4);
   }
   CHECK(observer.faultedFibers.empty());
+}
+
+namespace {
+
+/** A one-page program carrying two hookable host call sites and no rules. */
+ProgramImage twoCallSitePageProgram(ProgramBuilder& b, std::vector<uint8_t>& storage) {
+  b.poolString("page-id");
+  b.beginPage(0).pageHostCallSite(0, 1).pageHostCallSite(1, 1);
+  return b.build(storage);
+}
+
+} // namespace
+
+TEST_CASE("shutdown runs the current page's exited hooks bound to their call sites") {
+  ProgramBuilder b;
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = twoCallSitePageProgram(b, storage);
+
+  std::string log;
+  const HostActionBinding bindings[1] = {hookedLogBinding(log)};
+  ExecutionContext ctx;
+  RuntimeSurface surface{&ctx, {bindings, 1}, nullptr};
+  SchedulerStorage pools;
+  FiberScheduler scheduler(image, surface, pools.arena, wendoo::test::kDeviceProfileCaps);
+  BrainRuntime brain(image, scheduler, surface);
+  REQUIRE(brain.startup().isOk());
+  REQUIRE(log == "i0e0i1e1");
+
+  log.clear();
+  REQUIRE(brain.shutdown().isOk());
+  CHECK(log == "x0x1");
+  CHECK(ctx.currentCallSiteId == kNoCallSiteId);
+}
+
+TEST_CASE("a repeated shutdown runs the current page's exited hooks again") {
+  ProgramBuilder b;
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = twoCallSitePageProgram(b, storage);
+
+  std::string log;
+  const HostActionBinding bindings[1] = {hookedLogBinding(log)};
+  ExecutionContext ctx;
+  RuntimeSurface surface{&ctx, {bindings, 1}, nullptr};
+  SchedulerStorage pools;
+  FiberScheduler scheduler(image, surface, pools.arena, wendoo::test::kDeviceProfileCaps);
+  BrainRuntime brain(image, scheduler, surface);
+  REQUIRE(brain.startup().isOk());
+  REQUIRE(brain.shutdown().isOk());
+
+  log.clear();
+  REQUIRE(brain.shutdown().isOk());
+  CHECK(log == "x0x1");
+}
+
+TEST_CASE("think after shutdown does nothing") {
+  ProgramBuilder b;
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = rulePageProgram(b, storage);
+
+  const HostActionBinding bindings[1] = {{1, &execNoop, nullptr, nullptr}};
+  ExecutionContext ctx;
+  CountingObserver observer;
+  RuntimeSurface surface{&ctx, {bindings, 1}, &observer};
+  SchedulerStorage pools;
+  FiberScheduler scheduler(image, surface, pools.arena, wendoo::test::kDeviceProfileCaps);
+  BrainRuntime brain(image, scheduler, surface);
+  REQUIRE(brain.startup().isOk());
+  REQUIRE(brain.think(16.0f).isOk());
+  REQUIRE(observer.actionCalls == 1);
+
+  REQUIRE(brain.shutdown().isOk());
+  REQUIRE(brain.think(32.0f).isOk());
+  // No rule re-fired and no time was stamped: the think returned before the
+  // tick, leaving the counters where the last live think left them.
+  CHECK(observer.actionCalls == 1);
+  CHECK(ctx.currentTick == 1);
+  CHECK(ctx.time == 16.0f);
+}
+
+namespace {
+
+// A target-range async host function whose handle never settles, so a rule that
+// awaits it is still parked when the brain shuts down.
+constexpr uint32_t kNeverSettleFnId = 1500;
+
+Status execNeverSettle(void*, ExecutionContext&, Span<const Value>, AsyncHandle) {
+  return Status::ok();
+}
+
+} // namespace
+
+TEST_CASE("shutdown drops the async handles the page left pending") {
+  ProgramBuilder b;
+  b.poolString("page-id");
+  b.beginFunction()
+      .instr(Op::HOST_CALL_ASYNC, kNeverSettleFnId, 0, 0)
+      .instr(Op::AWAIT)
+      .instr(Op::RET);
+  b.ruleFunc(0);
+  b.beginPage(0).pageRoot(0);
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  const TargetHostFuncBinding hostFns[1] = {{kNeverSettleFnId, nullptr, nullptr, &execNeverSettle}};
+  ExecutionContext ctx;
+  CountingObserver observer;
+  RuntimeSurface surface{&ctx, {}, &observer};
+  surface.hostFunctions = {hostFns, 1};
+  SchedulerStorage pools;
+  FiberScheduler scheduler(image, surface, pools.arena, wendoo::test::kDeviceProfileCaps);
+  BrainRuntime brain(image, scheduler, surface);
+  REQUIRE(brain.startup().isOk());
+
+  REQUIRE(brain.think(16.0f).isOk());
+  REQUIRE(observer.faultedFibers.empty());
+  REQUIRE(scheduler.handles().size() == 1);
+
+  REQUIRE(brain.shutdown().isOk());
+  CHECK(scheduler.handles().size() == 0);
+  CHECK(scheduler.handles().cappedSize() == 0);
+  CHECK(scheduler.handles().hasCapacity());
 }

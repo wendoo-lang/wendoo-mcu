@@ -103,7 +103,8 @@ struct ExecutionContext {
   /**
    * Whether each call site's persistent state has been allocated. Drives the
    * once-only action initializer hook: it fires the first time a call site is
-   * activated and never again for the brain's lifetime. False until then.
+   * activated and not again until {@link resetCallSite} drops that call site.
+   * False until then.
    */
   Span<bool> callSiteAllocated{};
 
@@ -333,9 +334,9 @@ struct ExecutionContext {
   }
 
   /**
-   * Marks `callSiteId`'s persistent state allocated, returning true the first
-   * time (when the action's one-time initializer hook must run) and false
-   * thereafter.
+   * Marks `callSiteId`'s persistent state allocated, returning true when this
+   * call allocated it (when the action's one-time initializer hook must run)
+   * and false when it was already allocated.
    */
   bool ensureCallSite(uint32_t callSiteId) {
     if (callSiteAllocated[callSiteId]) {
@@ -343,6 +344,22 @@ struct ExecutionContext {
     }
     callSiteAllocated[callSiteId] = true;
     return true;
+  }
+
+  /**
+   * Drops `callSiteId`'s whole record: its host state, and every bytecode
+   * callsite-var slot in its row. The next {@link ensureCallSite} for this
+   * call site returns true, so the action's one-time initializer hook runs
+   * again on the call site's next activation. Other call sites are untouched.
+   * `callSiteId` must be within {@link callSiteAllocated}.
+   */
+  void resetCallSite(uint32_t callSiteId) {
+    callSiteStates[callSiteId] = kNilValue;
+    callSiteStatePresent[callSiteId] = false;
+    for (uint32_t idx = 0; idx < callSiteSlotStride; idx++) {
+      setCallSiteSlot(callSiteId, idx, kNilValue);
+    }
+    callSiteAllocated[callSiteId] = false;
   }
 
   /**

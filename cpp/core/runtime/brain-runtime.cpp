@@ -100,15 +100,26 @@ Status BrainRuntime::activatePage(uint32_t pageIndex) {
       // An unregistered action is skipped here; the existence check faults at
       // dispatch, mirroring the TS activation flow.
       const HostActionBinding* action = findHostActionById(surface_.actions, site.boundId);
-      if (action == nullptr || action->onPageEntered == nullptr) {
+      if (action == nullptr ||
+          (action->onInitialized == nullptr && action->onPageEntered == nullptr)) {
         continue;
       }
       if (site.callSiteId >= ctx.callSiteStates.size()) {
         return Status::fail(ErrorCode::HostError);
       }
-      ctx.currentCallSiteId = site.callSiteId;
-      action->onPageEntered(action->hostData, ctx);
-      ctx.currentCallSiteId = kNoCallSiteId;
+      // Host call site: run the action's one-time initializer (only the first
+      // activation of this call site) and its per-activation entered hook, in
+      // that order, each with the call site bound.
+      if (action->onInitialized != nullptr && ctx.ensureCallSite(site.callSiteId)) {
+        ctx.currentCallSiteId = site.callSiteId;
+        action->onInitialized(action->hostData, ctx);
+        ctx.currentCallSiteId = kNoCallSiteId;
+      }
+      if (action->onPageEntered != nullptr) {
+        ctx.currentCallSiteId = site.callSiteId;
+        action->onPageEntered(action->hostData, ctx);
+        ctx.currentCallSiteId = kNoCallSiteId;
+      }
       continue;
     }
 
@@ -155,11 +166,22 @@ Status BrainRuntime::deactivateCurrentPage() {
   const PageMetadata& page = program_.pages[currentPageIndex_];
   ExecutionContext& ctx = *surface_.context;
 
-  // Run each bytecode call site's deactivation hook in call-site order, then
-  // cancel the page's rule fibers.
+  // Run each call site's deactivation hook in call-site order -- the host
+  // page-exited hook or the bytecode deactivation hook -- then cancel the
+  // page's rule fibers.
   for (uint32_t i = 0; i < page.callSitesCount; i++) {
     const ActionCallSite& site = program_.callSites[page.callSitesOffset + i];
-    if (site.binding != CallSiteBinding::Bytecode) {
+    if (site.binding == CallSiteBinding::Host) {
+      const HostActionBinding* action = findHostActionById(surface_.actions, site.boundId);
+      if (action == nullptr || action->onPageExited == nullptr) {
+        continue;
+      }
+      if (site.callSiteId >= ctx.callSiteStates.size()) {
+        return Status::fail(ErrorCode::HostError);
+      }
+      ctx.currentCallSiteId = site.callSiteId;
+      action->onPageExited(action->hostData, ctx);
+      ctx.currentCallSiteId = kNoCallSiteId;
       continue;
     }
     if (!program_.hasActions || site.boundId >= program_.actions.size()) {
@@ -189,6 +211,20 @@ void BrainRuntime::cancelActiveFibers() {
   // Cascade: cancel every in-flight child-rule fiber spawned beneath the page's
   // roots, so a page switch or restart leaves no orphaned child fiber.
   scheduler_.cancelChildRuleFibers();
+}
+
+Status BrainRuntime::shutdown() {
+  // The page index survives shutdown, so a repeated call deactivates the same
+  // page again; a program with no pages has nothing to deactivate.
+  if (currentPageIndex_ < program_.pages.size()) {
+    const Status deactivated = deactivateCurrentPage();
+    if (!deactivated.isOk()) {
+      return deactivated;
+    }
+  }
+  scheduler_.handles().clear();
+  pageActive_ = false;
+  return Status::ok();
 }
 
 void BrainRuntime::requestPageChange(uint32_t pageIndex) {

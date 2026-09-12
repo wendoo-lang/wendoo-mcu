@@ -1226,6 +1226,43 @@ TEST_CASE("HOST_ACTION_CALL with a registered action but no context faults HostE
   CHECK(result.error == ErrorCode::HostError);
 }
 
+TEST_CASE("resetCallSite drops one call site's record and re-arms its initializer gate") {
+  std::array<uint8_t, 512> ctxStorage;
+  wendoo::RegionArena ctxArena(Span<uint8_t>(ctxStorage.data(), ctxStorage.size()));
+  wendoo::ExecutionContext ctx;
+  // Two call sites, each with a two-wide bytecode callsite-var row.
+  REQUIRE(ctx.bindSlots(ctxArena, 0, 2, 2));
+
+  REQUIRE(ctx.ensureCallSite(0));
+  REQUIRE(ctx.ensureCallSite(1));
+  ctx.currentCallSiteId = 0;
+  ctx.setCallSiteState(Value::number(1.0f));
+  ctx.setCallSiteSlot(0, 0, Value::number(2.0f));
+  ctx.setCallSiteSlot(0, 1, Value::number(3.0f));
+  ctx.currentCallSiteId = 1;
+  ctx.setCallSiteState(Value::number(4.0f));
+  ctx.setCallSiteSlot(1, 0, Value::number(5.0f));
+
+  ctx.resetCallSite(0);
+
+  // The reset call site reads as an untouched one: no host state, a nil slot
+  // row, and a gate that fires again.
+  ctx.currentCallSiteId = 0;
+  CHECK(ctx.hasCallSiteState() == false);
+  CHECK(ctx.callSiteStates[0].tag() == ValueTag::Nil);
+  CHECK(ctx.callSiteSlot(0, 0).tag() == ValueTag::Nil);
+  CHECK(ctx.callSiteSlot(0, 1).tag() == ValueTag::Nil);
+
+  // The un-reset call site keeps its host state, its slots, and its spent gate.
+  ctx.currentCallSiteId = 1;
+  CHECK(ctx.hasCallSiteState());
+  CHECK(ctx.callSiteState().asNumber() == 4.0f);
+  CHECK(ctx.callSiteSlot(1, 0).asNumber() == 5.0f);
+  CHECK(ctx.ensureCallSite(1) == false);
+
+  CHECK(ctx.ensureCallSite(0));
+}
+
 // ---- Structs, closures, and function calls ----
 
 namespace {

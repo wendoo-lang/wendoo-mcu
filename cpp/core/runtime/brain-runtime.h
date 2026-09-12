@@ -36,12 +36,13 @@ public:
 
   /**
    * Begins execution: activates page 0, running each host call site's
-   * page-entered hook with the call site bound, then spawning the page's
-   * root-rule fibers in order. A program with no pages activates nothing.
-   * Call once before {@link think}. Fails with `ErrorCode::HostError` when
-   * the surface has no context or a call-site id exceeds its slot table, and
-   * with `ErrorCode::StackOverflow` when the region cannot back the page's
-   * root-rule tracking; spawn failures propagate.
+   * one-time initializer hook and per-activation page-entered hook with the
+   * call site bound, then spawning the page's root-rule fibers in order. A
+   * program with no pages activates nothing. Call once before {@link think}.
+   * Fails with `ErrorCode::HostError` when the surface has no context or a
+   * call-site id exceeds its slot table, and with `ErrorCode::StackOverflow`
+   * when the region cannot back the page's root-rule tracking; spawn failures
+   * propagate.
    */
   Status startup();
 
@@ -56,6 +57,20 @@ public:
    * @param currentTimeMs - Monotonically increasing time in milliseconds.
    */
   Status think(mc_number_t currentTimeMs);
+
+  /**
+   * Ends execution: runs the current page's deactivation hooks in call-site
+   * order -- each host page-exited hook or bytecode deactivation hook bound to
+   * its call site -- cancels the page's rule fibers, and then drops every
+   * pending async handle. No page is active afterwards, so {@link think} does
+   * nothing. Repeating the call runs the same deactivation hooks again, as
+   * `shutdown` in
+   * external/wendoo-lang/packages/core/src/runtime/brain-runtime.ts does. Call
+   * after {@link startup}. Fails with `ErrorCode::HostError` when a call-site
+   * id exceeds its slot table; a faulting bytecode deactivation hook propagates
+   * its code, and the handles are left in place.
+   */
+  Status shutdown();
 
   /**
    * Requests a switch to page `pageIndex` at the next {@link think}, which
