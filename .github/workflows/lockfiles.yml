@@ -1,0 +1,42 @@
+name: Lockfiles
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "external/wendoo-lang"
+      - ".github/workflows/lockfiles.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lockfiles-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Every lockfile matches its package.json
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: "**/package-lock.json"
+
+      # Regenerates each lockfile from its package.json and compares, leaving
+      # the working tree as it found it. The walk follows the file: dependency
+      # graph, so it covers the platform packages microbit-sim reaches too.
+      - name: Check the lockfiles
+        run: npm run lockfiles:check

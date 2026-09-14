@@ -9,26 +9,42 @@
   "scripts": {
     "predev": "npm run build:deps",
     "dev": "vite --config vite/config.dev.mjs --force",
-    "prebuild": "npm run install:packages --prefix ../../external/wendoo-lang && npm run install:packages --prefix ../.. && npm run build:deps",
+    "prebuild": "npm run build:deps",
     "build": "vite build --config vite/config.prod.mjs",
     "postbuild": "npm run build:headless",
     "prebuild:headless": "npm run build:deps",
-    "build:headless": "node scripts/build-headless-adapter.mjs",
+    "build:headless": "wireit",
     "build:deps": "node ../../external/wendoo-lang/scripts/build-packages.js .",
-    "prepackage": "npm run build:deps",
-    "package": "vite build --config vite/config.prod.mjs --base=./ && wendoo-assemble-target-package",
+    "package": "npm run build && wendoo-assemble-target-package",
     "release-trg": "node scripts/release-trg.mjs",
+    "release": "node scripts/release-dispatch.mjs",
     "clean": "rm -rf dist && rm -rf dist-headless && rm -rf node_modules/.vite",
     "vendor:firmware": "node scripts/vendor-firmware.mjs",
     "generate:docs": "node scripts/build-docs.mjs",
-    "check:only": "biome check ./src",
-    "check": "biome check ./src --write",
+    "lint:only": "biome lint ./src ./vite",
+    "check:only": "biome check ./src ./vite",
+    "format:only": "biome format ./src ./vite",
+    "check": "biome check ./src ./vite --write",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.spec.json && tsc --noEmit -p test-fixtures/tsconfig.json",
     "pretest": "npm run generate:docs && npm run build:headless",
-    "test": "tsx --tsconfig tsconfig.spec.json --test $(find src -name '*.spec.ts')",
-    "release:patch": "node ../../external/wendoo-lang/scripts/release.js patch --skip-deps",
-    "release:minor": "node ../../external/wendoo-lang/scripts/release.js minor --skip-deps",
-    "release:major": "node ../../external/wendoo-lang/scripts/release.js major --skip-deps"
+    "test": "tsx --tsconfig tsconfig.spec.json --test $(find src -name '*.spec.ts')"
+  },
+  "wireit": {
+    "build:headless": {
+      "command": "node scripts/build-headless-adapter.mjs",
+      "files": [
+        "scripts/build-headless-adapter.mjs",
+        "package.json",
+        "target-package/wendoo.json",
+        "../../packages/wodal/package.json",
+        "../../packages/wodal/dist/**",
+        "../../external/wendoo-lang/packages/*/package.json",
+        "../../external/wendoo-lang/packages/*/dist/**"
+      ],
+      "output": [
+        "dist-headless/**"
+      ]
+    }
   },
   "dependencies": {
     "@microbit/microbit-connection": "^0.1.0",
@@ -65,6 +81,7 @@
     "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.26.1",
-    "vite": "^6.3.1"
+    "vite": "^6.3.1",
+    "wireit": "^0.14.13"
   }
 }

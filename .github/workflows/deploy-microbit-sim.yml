@@ -1,46 +1,115 @@
 name: Deploy microbit-sim
 
 on:
-  push:
-    tags:
-      - "microbit-sim-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published target package version to deploy (x.y.z); empty deploys the latest published version"
+        required: false
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      version:
+        description: "Published target package version to deploy (x.y.z); empty deploys the latest published version"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   id-token: write
   contents: read
 
 env:
+  TRG_REPOSITORY: wendoo-lang/trg-microbit-v2
+  PACKAGE_DIR: trg-package
   S3_BUCKET: microbit.mindcraft-lang.org
   AWS_REGION: us-east-1
   CLOUDFRONT_DISTRIBUTION_ID: E3MYKIZ1C0O435
 
+concurrency:
+  group: deploy-microbit-sim
+
 jobs:
-  build-and-deploy:
-    name: Build & Deploy
+  deploy:
+    name: Deploy
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      # An empty dispatch input resolves to the highest published x.y.z tag on
+      # the target repository; a given version must name an exact release.
+      # Either way VERSION carries a gate-matched x.y.z for the later steps.
+      - name: Resolve the version to deploy
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "$REQUESTED" ]; then
+            # A repository carrying no vX.Y.Z tag yields an empty VERSION,
+            # which the check below reports.
+            VERSION="$(git ls-remote --tags "https://github.com/$TRG_REPOSITORY.git" 'refs/tags/v*' \
+              | { grep -Eo 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
+              | sed 's#refs/tags/v##' \
+              | sort -V | tail -1)"
+            if [ -z "$VERSION" ]; then
+              echo "no published x.y.z release found on $TRG_REPOSITORY."
+              exit 1
+            fi
+            echo "deploying the latest published version: $VERSION"
+          else
+            if ! printf '%s' "$REQUESTED" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "version must be an exact x.y.z release, or empty for the latest."
+              exit 1
+            fi
+            VERSION="$REQUESTED"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Fetch the published target package
         uses: actions/checkout@v6
         with:
-          submodules: recursive
+          repository: ${{ env.TRG_REPOSITORY }}
+          ref: v${{ env.VERSION }}
+          path: ${{ env.PACKAGE_DIR }}
+          persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Install microbit-sim dependencies
-        working-directory: apps/microbit-sim
+      # Rejects a fetched tree whose manifest declares an identity or a version
+      # other than the ones this deploy resolved, then exports HOST_APP as the
+      # host app subtree to sync.
+      - name: Locate the package's host app tree
         run: |
-          rm -f package-lock.json
-          npm install
-
-      # `npm run build` runs the prebuild step first: it installs the external
-      # and local package dependencies and builds them (build:deps) before Vite.
-      - name: Build microbit-sim
-        working-directory: apps/microbit-sim
-        run: npm run build
+          set -euo pipefail
+          PACKAGE_IDENTITY="$(node -p "require('./$PACKAGE_DIR/wendoo.json').identity")"
+          if [ "$PACKAGE_IDENTITY" != "$TRG_REPOSITORY" ]; then
+            echo "the fetched package declares identity $PACKAGE_IDENTITY, not the deploy target $TRG_REPOSITORY."
+            exit 1
+          fi
+          PACKAGE_VERSION="$(node -p "require('./$PACKAGE_DIR/wendoo.json').version")"
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "the fetched package declares version $PACKAGE_VERSION, not the resolved $VERSION."
+            exit 1
+          fi
+          HOST_APP_PATH="$(node -p "require('./$PACKAGE_DIR/wendoo.json').hostApp.path")"
+          UNUSABLE=""
+          # "undefined" is what node prints for a manifest carrying no
+          # hostApp.path. GITHUB_ENV reads each line as its own assignment, so
+          # a hostApp.path carrying a line break is unusable.
+          case "$HOST_APP_PATH" in
+            "" | "." | "undefined" | /*) UNUSABLE="1" ;;
+            *[$'\n\r']*) UNUSABLE="1" ;;
+          esac
+          case "/$HOST_APP_PATH/" in
+            */../*) UNUSABLE="1" ;;
+          esac
+          if [ -n "$UNUSABLE" ]; then
+            echo "the package's hostApp.path \"$HOST_APP_PATH\" is not a usable subdirectory of the package."
+            exit 1
+          fi
+          {
+            echo "HOST_APP<<HOST_APP_EOF"
+            echo "$PACKAGE_DIR/$HOST_APP_PATH"
+            echo "HOST_APP_EOF"
+          } >> "$GITHUB_ENV"
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -48,13 +117,45 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Sync build output to S3
+      # This sync's include/exclude set and the unhashed sync's below are an
+      # exact partition of the host app tree, and this set holds exactly the
+      # content-hash-named files.
+      - name: Upload hashed assets to S3
         run: |
-          aws s3 sync apps/microbit-sim/dist "s3://$S3_BUCKET" \
-            --delete
+          set -euo pipefail
+          aws s3 sync "$HOST_APP" "s3://$S3_BUCKET" \
+            --size-only \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*" \
+            --include "assets/*" \
+            --exclude "assets/brain/*" \
+            --exclude "assets/fonts/*"
+
+      - name: Sync entry and unhashed files to S3
+        run: |
+          set -euo pipefail
+          aws s3 sync "$HOST_APP" "s3://$S3_BUCKET" \
+            --delete \
+            --cache-control "no-cache" \
+            --exclude "assets/*" \
+            --include "assets/brain/*" \
+            --include "assets/fonts/*"
 
       - name: Invalidate CloudFront cache
         run: |
+          set -euo pipefail
           aws cloudfront create-invalidation \
-            --distribution-id "${{ env.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
             --paths "/*"
+
+      - name: Prune superseded hashed assets
+        run: |
+          set -euo pipefail
+          aws s3 sync "$HOST_APP" "s3://$S3_BUCKET" \
+            --delete \
+            --size-only \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*" \
+            --include "assets/*" \
+            --exclude "assets/brain/*" \
+            --exclude "assets/fonts/*"

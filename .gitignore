@@ -9,6 +9,7 @@ cpp/build/
 cpp/out/
 apps/microbit-sim/target-package/app/
 apps/microbit-sim/target-package/rehearsal/
+apps/microbit-sim/target-package/declared-surface.json
 
 # Environment
 .env

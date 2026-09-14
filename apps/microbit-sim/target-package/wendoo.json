@@ -111,7 +111,7 @@
       "app/assets/brain/icons/var-factory-text.svg",
       "app/assets/fonts/latinmodern-math.woff2",
       "app/assets/index-C3CdQjLQ.css",
-      "app/assets/index-kHSQtEY_.js",
+      "app/assets/index-GQp9F2bK.js",
       "app/index.html",
       "app/microbit-v2.svg",
       "app/og-image.png"
@@ -120,5 +120,8 @@
   "rehearsalAdapter": {
     "path": "rehearsal/adapter.js"
   },
-  "buildVersion": "0.9.11"
+  "buildVersion": "0.9.11",
+  "declaredSurface": {
+    "path": "declared-surface.json"
+  }
 }

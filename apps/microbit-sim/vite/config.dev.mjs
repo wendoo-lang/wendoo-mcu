@@ -11,10 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(process.cwd(), "./src"),
-      "@wendoo/assistant-panel": path.resolve(
-        process.cwd(),
-        "../../external/wendoo-lang/packages/assistant-panel/src"
-      ),
+      "@wendoo/assistant-panel": path.resolve(process.cwd(), "../../external/wendoo-lang/packages/assistant-panel/src"),
       "@wendoo/ui": path.resolve(process.cwd(), "../../external/wendoo-lang/packages/ui/src"),
       "@wendoo/docs": path.resolve(process.cwd(), "../../external/wendoo-lang/packages/docs/src"),
     },

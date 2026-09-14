@@ -1,0 +1,153 @@
+name: Release microbit-sim
+
+run-name: "Release microbit-sim: ${{ inputs.bump }} ${{ inputs.dispatch-id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      dispatch-id:
+        description: "Caller-supplied marker shown in the run name, so a dispatching script can find this run"
+        required: false
+        type: string
+        default: ""
+      bump:
+        description: "Version bump level"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+      deploy:
+        description: "Deploy the released version once the publish succeeds"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-microbit-sim
+
+jobs:
+  release:
+    name: Package & Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # Installs every package microbit-sim reaches, in this repository and in
+      # the platform submodule, and microbit-sim itself, from the versions their
+      # lockfiles record. A lockfile that no longer matches its package.json
+      # fails here.
+      - name: Install the package graph
+        run: |
+          set -euo pipefail
+          order="$(node external/wendoo-lang/scripts/build-packages.js --order apps/microbit-sim)"
+          for dir in $order; do
+            (cd "$dir" && npm ci)
+          done
+
+      # Builds the dists the release steps run against, and links the commands
+      # this run built into node_modules/.bin.
+      - name: Build local packages
+        working-directory: apps/microbit-sim
+        run: npm run build:deps
+
+      - name: Lint & format check
+        working-directory: apps/microbit-sim
+        run: npm run check:only
+
+      - name: Typecheck
+        working-directory: apps/microbit-sim
+        run: npm run typecheck
+
+      - name: Run tests
+        working-directory: apps/microbit-sim
+        run: npm test
+
+      # Bumps the manifest version, then rebuilds and re-bakes the package at
+      # that version.
+      - name: Prepare the release
+        working-directory: apps/microbit-sim
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          npm run release-trg -- prepare "$BUMP"
+
+      # A lockfile rewritten between the checkout and here means a step
+      # installed something the lockfiles do not record.
+      - name: Assert the lockfiles are unchanged
+        run: |
+          set -euo pipefail
+          changed="$(
+            git status --porcelain -- '*package-lock.json'
+            git -C external/wendoo-lang status --porcelain -- '*package-lock.json'
+          )"
+          if [ -n "$changed" ]; then
+            echo "A release step rewrote a lockfile, so this release is not reproducible from its tag:"
+            echo "$changed"
+            exit 1
+          fi
+
+      # Commits the bumped target manifest and pushes it to the branch this run
+      # was dispatched from.
+      - name: Commit & push the version bump
+        id: bump
+        working-directory: apps/microbit-sim
+        env:
+          BRANCH: ${{ github.ref_name }}
+          GIT_CONFIG_COUNT: "2"
+          GIT_CONFIG_KEY_0: user.name
+          GIT_CONFIG_VALUE_0: "github-actions[bot]"
+          GIT_CONFIG_KEY_1: user.email
+          GIT_CONFIG_VALUE_1: "41898282+github-actions[bot]@users.noreply.github.com"
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./target-package/wendoo.json').version")"
+          git add target-package/wendoo.json
+          git commit -m "microbit-sim target package v$VERSION"
+          git push origin "HEAD:$BRANCH"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Publishes the package as tag v<version> on the repository the manifest
+      # identity names.
+      - name: Publish the target package
+        working-directory: apps/microbit-sim
+        env:
+          TRG_PUBLISH_TOKEN: ${{ secrets.TRG_PUBLISH_TOKEN }}
+        run: |
+          set -euo pipefail
+          IDENTITY="$(node -p "require('./target-package/wendoo.json').identity")"
+          TRG_REMOTE="https://github.com/$IDENTITY.git"
+          export GIT_CONFIG_COUNT=3
+          export GIT_CONFIG_KEY_0="user.name"
+          export GIT_CONFIG_VALUE_0="github-actions[bot]"
+          export GIT_CONFIG_KEY_1="user.email"
+          export GIT_CONFIG_VALUE_1="41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_CONFIG_KEY_2="url.https://x-access-token:$TRG_PUBLISH_TOKEN@github.com/$IDENTITY.git.insteadOf"
+          export GIT_CONFIG_VALUE_2="$TRG_REMOTE"
+          npm run release-trg -- publish
+
+  deploy:
+    name: Deploy
+    needs: release
+    if: ${{ inputs.deploy }}
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/deploy-microbit-sim.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit

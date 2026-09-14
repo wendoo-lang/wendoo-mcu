@@ -1,5 +1,5 @@
-import path from "path";
 import { embeddedExtensionsVitePlugin } from "@wendoo/bridge-app/node";
+import path from "path";
 
 // The extensions microbit-sim offers, by coordinate and source directory. The
 // file list of each comes from its own wendoo.json, so adding a file to an
