@@ -10,7 +10,8 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createTargetBuildStamp, readTargetIdentity } from "@wendoo/assistant-bridge/kit/node";
+import { readTargetIdentity } from "@wendoo/assistant-bridge/kit/node";
+import { readCoreBuild } from "@wendoo/core/tooling";
 import { build } from "esbuild";
 
 /** The device this app distributes, named as its device-runtime package subtree carries it. */
@@ -27,7 +28,7 @@ const targetIdentity = readTargetIdentity(appDir);
 const artifactEntry = [
   `import { createTargetAdapter as createDeviceAdapter } from ${JSON.stringify(ADAPTER_ENTRY)};`,
   `export const createTargetAdapter = () => createDeviceAdapter(${JSON.stringify(targetIdentity)});`,
-  `export const buildStamp = ${JSON.stringify(createTargetBuildStamp(appDir))};`,
+  `export const buildStamp = ${JSON.stringify(readCoreBuild(appDir))};`,
   "",
 ].join("\n");
 

@@ -74,7 +74,6 @@
     "@vitejs/plugin-react": "^4.3.4",
     "esbuild": "^0.27.7",
     "fake-indexeddb": "^6.2.5",
-    "wendoo-cli": "file:../../external/wendoo-lang/packages/cli",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "terser": "^5.28.1",
@@ -82,6 +81,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.26.1",
     "vite": "^6.3.1",
+    "wendoo": "file:../../external/wendoo-lang/packages/cli",
     "wireit": "^0.14.13"
   }
 }

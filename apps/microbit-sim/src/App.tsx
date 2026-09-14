@@ -37,6 +37,7 @@ export function App() {
     <AssistantProvider
       connect={store.assistant.connect}
       manifest={store.assistant.manifest}
+      clientBuild={store.assistant.clientBuild}
       workspace={store.assistant.workspaces.workspaceFor}
       activity={store.assistant.activity}
     >

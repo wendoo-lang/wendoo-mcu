@@ -7,7 +7,7 @@ import { describe, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { TargetAdapter } from "@wendoo/assistant-bridge";
 import { catalogDigest } from "@wendoo/assistant-bridge";
-import { environmentTiles } from "@wendoo/assistant-panel";
+import { environmentTiles } from "@wendoo/assistant-bridge/relay";
 import { build } from "esbuild";
 import { MICROBIT_V2_TARGET_COORDINATE } from "../services/microbit-extension-coordinates";
 

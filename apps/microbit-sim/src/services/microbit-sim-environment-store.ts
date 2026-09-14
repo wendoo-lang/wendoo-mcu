@@ -10,10 +10,10 @@ import {
   type ProjectManifest,
   WENDOO_JSON_PATH,
 } from "@wendoo/app-host";
+import { assistantToolManifest } from "@wendoo/assistant-bridge/relay";
 import type { AssistantConnect, EditedBrainWorkspaces, PersonActivity } from "@wendoo/assistant-panel";
 import {
   assistantSessionUrl,
-  assistantToolManifest,
   createEditedBrainWorkspaces,
   createPersonActivity,
   createWebSocketConnect,
@@ -33,6 +33,7 @@ import {
   type VfsAssetUrlProvider,
   type WorkspaceCompileDiagnostic,
 } from "@wendoo/bridge-app";
+import type { ClientBuild } from "@wendoo/core";
 import {
   BrainDef,
   coreModule,
@@ -57,6 +58,7 @@ import { name as appName } from "../../package.json";
 import { type AppSettings, loadAppSettings, normalizeAppSettings, persistAppSettings } from "./app-settings";
 import { loadBindingToken, saveBindingToken } from "./binding-token-persistence";
 import { flashDiagnosticToEntry, runtimeFaultToEntry } from "./brain-diagnostic-entries";
+import { clientBuild } from "./client-build";
 import { type AppChrome, appChromeForMode, connectMicrobitFolderSession, isFolderHostMode } from "./folder-host-mode";
 import { microbitLibraryOfferToasts } from "./library-offer-toasts";
 import { microbitDefaultExtensions, microbitEmbeddedExtensions } from "./microbit-embedded-extensions";
@@ -183,6 +185,8 @@ function persistUiPreferences(projectId: string, prefs: UiPreferences): void {
 export interface AssistantComposition {
   /** What the handshake declares this app serves. */
   readonly manifest: RelayToolManifest;
+  /** The build the handshake declares this app runs. */
+  readonly clientBuild: ClientBuild;
   /** The workspaces a turn's tool calls run against, following the editor's working copy. */
   readonly workspaces: EditedBrainWorkspaces;
   /** Where the person's own acting on the edited brain is recorded, read by the panel and the workspaces alike. */
@@ -276,6 +280,7 @@ export class MicrobitSimEnvironmentStore {
     const activity = createPersonActivity();
     this.assistant = {
       manifest: assistantToolManifest(adapter),
+      clientBuild,
       activity,
       workspaces: createEditedBrainWorkspaces({
         environment: host.env,

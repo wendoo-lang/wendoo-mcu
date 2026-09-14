@@ -4,16 +4,18 @@ import { defineConfig } from "vite";
 import { uiPlugin } from "../../../external/wendoo-lang/packages/ui/src/vite-plugin.ts";
 import { embeddedExtensions } from "./embedded-extensions.mjs";
 
+const appDir = path.resolve(__dirname, "..");
+
 export default defineConfig({
   base: "/",
   appType: "spa",
   plugins: [react(), uiPlugin(), embeddedExtensions()],
   resolve: {
     alias: {
-      "@": path.resolve(process.cwd(), "./src"),
-      "@wendoo/assistant-panel": path.resolve(process.cwd(), "../../external/wendoo-lang/packages/assistant-panel/src"),
-      "@wendoo/ui": path.resolve(process.cwd(), "../../external/wendoo-lang/packages/ui/src"),
-      "@wendoo/docs": path.resolve(process.cwd(), "../../external/wendoo-lang/packages/docs/src"),
+      "@": path.resolve(appDir, "./src"),
+      "@wendoo/assistant-panel": path.resolve(appDir, "../../external/wendoo-lang/packages/assistant-panel/src"),
+      "@wendoo/ui": path.resolve(appDir, "../../external/wendoo-lang/packages/ui/src"),
+      "@wendoo/docs": path.resolve(appDir, "../../external/wendoo-lang/packages/docs/src"),
     },
   },
   optimizeDeps: {
@@ -26,7 +28,7 @@ export default defineConfig({
   },
   server: {
     fs: {
-      allow: [path.resolve(process.cwd(), "../..")],
+      allow: [path.resolve(appDir, "../..")],
     },
   },
 });
