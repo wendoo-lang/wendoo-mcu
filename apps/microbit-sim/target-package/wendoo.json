@@ -1,6 +1,6 @@
 {
   "name": "micro:bit v2",
-  "version": "0.9.11",
+  "version": "0.9.12",
   "identity": "wendoo-lang/trg-microbit-v2",
   "description": "Program the BBC micro:bit (v2) with Wendoo.",
   "targets": {
@@ -110,8 +110,8 @@
       "app/assets/brain/icons/var-factory-number.svg",
       "app/assets/brain/icons/var-factory-text.svg",
       "app/assets/fonts/latinmodern-math.woff2",
+      "app/assets/index-5DClUCx1.js",
       "app/assets/index-C3CdQjLQ.css",
-      "app/assets/index-GQp9F2bK.js",
       "app/index.html",
       "app/microbit-v2.svg",
       "app/og-image.png"
@@ -120,8 +120,8 @@
   "rehearsalAdapter": {
     "path": "rehearsal/adapter.js"
   },
-  "buildVersion": "0.9.11",
   "declaredSurface": {
     "path": "declared-surface.json"
-  }
+  },
+  "buildVersion": "0.9.12"
 }
