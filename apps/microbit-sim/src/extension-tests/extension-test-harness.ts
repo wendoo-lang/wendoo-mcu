@@ -49,7 +49,7 @@ export { CUTEBOT_EXT_COORDINATE, YAHBOOM_GAMEPAD_EXT_COORDINATE } from "../servi
  */
 function baseEmbedRecord(): EmbeddedExtension[] {
   return [
-    buildEmbeddedExtensionFromDir(extensionDir("../../target-package"), MICROBIT_V2_TARGET_COORDINATE),
+    buildEmbeddedExtensionFromDir(extensionDir("../.."), MICROBIT_V2_TARGET_COORDINATE, "target"),
     buildEmbeddedExtensionFromDir(
       extensionDir("../../../../packages/wodal/targets/microbit-v2/lib"),
       MICROBIT_V2_LIB_COORDINATE

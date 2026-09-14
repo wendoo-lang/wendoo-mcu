@@ -35,7 +35,7 @@
       "files": [
         "scripts/build-headless-adapter.mjs",
         "package.json",
-        "target-package/wendoo.json",
+        "wendoo.json",
         "../../packages/wodal/package.json",
         "../../packages/wodal/dist/**",
         "../../external/wendoo-lang/packages/*/package.json",

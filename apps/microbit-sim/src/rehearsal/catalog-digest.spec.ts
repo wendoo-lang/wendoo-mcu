@@ -15,9 +15,8 @@ import { MICROBIT_V2_TARGET_COORDINATE } from "../services/microbit-extension-co
 const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** The identity this target's own manifest declares. */
-const targetIdentity = (
-  JSON.parse(readFileSync(join(APP_DIR, "target-package", "wendoo.json"), "utf8")) as { identity: string }
-).identity;
+const targetIdentity = (JSON.parse(readFileSync(join(APP_DIR, "wendoo.json"), "utf8")) as { identity: string })
+  .identity;
 
 /** Device-runtime entry publishing this device's adapter factory. */
 const ADAPTER_ENTRY = "@wendoo/wodal/targets/microbit-v2/rehearsal";

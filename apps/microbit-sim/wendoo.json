@@ -1,0 +1,11 @@
+{
+  "name": "Wendoo micro:bit v2",
+  "version": "0.9.12",
+  "identity": "wendoo-lang/trg-microbit-v2",
+  "description": "Program the BBC micro:bit (v2) with Wendoo.",
+  "targets": {
+    "wendoo-lang/lib-microbit-v2": {
+      "packageVersion": "^0.2.0"
+    }
+  }
+}

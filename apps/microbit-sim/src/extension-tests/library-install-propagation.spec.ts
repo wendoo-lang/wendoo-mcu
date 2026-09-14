@@ -55,7 +55,7 @@ function extensionDir(relativePath: string): string {
 /** The embed record the Vite provider assembles: the target and the three layers; the feature libraries are catalog offers fetched as published gh: content. */
 function microbitEmbedRecord(): EmbeddedExtension[] {
   return [
-    buildEmbeddedExtensionFromDir(extensionDir("../../target-package"), MICROBIT_V2_TARGET_COORDINATE),
+    buildEmbeddedExtensionFromDir(extensionDir("../.."), MICROBIT_V2_TARGET_COORDINATE, "target"),
     buildEmbeddedExtensionFromDir(
       extensionDir("../../../../packages/wodal/targets/microbit-v2/lib"),
       MICROBIT_V2_LIB_COORDINATE

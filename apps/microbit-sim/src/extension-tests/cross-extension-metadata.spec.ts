@@ -53,7 +53,7 @@ function extensionDir(relativePath: string): string {
 /** The microbit-sim embed record: the runnable target and the three platform layers; the feature libraries and Position resolve as fixture-served published gh: content. */
 function embedRecord(): EmbeddedExtension[] {
   return [
-    buildEmbeddedExtensionFromDir(extensionDir("../../target-package"), MICROBIT_V2_TARGET_COORDINATE),
+    buildEmbeddedExtensionFromDir(extensionDir("../.."), MICROBIT_V2_TARGET_COORDINATE, "target"),
     buildEmbeddedExtensionFromDir(
       extensionDir("../../../../packages/wodal/targets/microbit-v2/lib"),
       MICROBIT_V2_LIB_COORDINATE

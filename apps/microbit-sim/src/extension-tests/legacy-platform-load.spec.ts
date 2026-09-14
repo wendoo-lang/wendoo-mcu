@@ -82,7 +82,7 @@ const LEGACY_YAHBOOM_COORDINATE = "wendoo-lang/lib-microbit-yahboom-gamepad";
  */
 function appEmbedRecord(): EmbeddedExtension[] {
   return [
-    buildEmbeddedExtensionFromDir(extensionDir("../../target-package"), MICROBIT_V2_TARGET_COORDINATE),
+    buildEmbeddedExtensionFromDir(extensionDir("../.."), MICROBIT_V2_TARGET_COORDINATE, "target"),
     buildEmbeddedExtensionFromDir(
       extensionDir("../../../../packages/wodal/targets/microbit-v2/lib"),
       MICROBIT_V2_LIB_COORDINATE

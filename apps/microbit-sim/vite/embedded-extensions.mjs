@@ -7,7 +7,8 @@ import path from "path";
 const registrations = [
   {
     coordinate: "wendoo-lang/trg-microbit-v2",
-    dir: path.resolve(process.cwd(), "./target-package"),
+    dir: path.resolve(process.cwd(), "."),
+    kind: "target",
   },
   {
     coordinate: "wendoo-lang/lib-microbit-v2",
