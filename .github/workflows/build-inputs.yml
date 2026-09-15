@@ -1,0 +1,40 @@
+name: Build inputs
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "**/package.json"
+      - "external/wendoo-lang"
+      - ".github/workflows/build-inputs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-inputs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Every headless build step declares its graph's inputs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # Regenerates each app's dependency input globs from the package graph and
+      # compares, leaving the working tree as it found it. The walk follows the
+      # file: dependency graph, so it covers the platform packages microbit-sim
+      # reaches too.
+      - name: Check the build inputs
+        run: npm run build-inputs:check

@@ -10,8 +10,10 @@
     "install:packages": "npm --prefix packages install",
     "install:apps": "npm --prefix apps install",
     "build:deps": "npm --prefix apps run build:deps",
-    "lockfiles:check": "node external/wendoo-lang/scripts/lockfiles.js . packages packages/*/ apps apps/*/",
-    "lockfiles:sync": "node external/wendoo-lang/scripts/lockfiles.js --fix . packages packages/*/ apps apps/*/"
+    "lockfiles:check": "node external/wendoo-lang/scripts/lockfiles.js --fix-command 'npm run lockfiles:sync' .",
+    "lockfiles:sync": "node external/wendoo-lang/scripts/lockfiles.js --fix .",
+    "build-inputs:check": "node external/wendoo-lang/scripts/build-inputs.js --fix-command 'npm run build-inputs:sync' .",
+    "build-inputs:sync": "node external/wendoo-lang/scripts/build-inputs.js --fix ."
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.15",

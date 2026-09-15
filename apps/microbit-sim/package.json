@@ -15,8 +15,8 @@
     "prebuild:headless": "npm run build:deps",
     "build:headless": "wireit",
     "build:deps": "node ../../external/wendoo-lang/scripts/build-packages.js .",
-    "package": "npm run build && wendoo-assemble-target-package",
-    "release-trg": "node scripts/release-trg.mjs",
+    "package": "npm run build && node_modules/.bin/wendoo assemble",
+    "release-trg": "node_modules/.bin/wendoo release",
     "release": "node scripts/release-dispatch.mjs",
     "clean": "rm -rf dist && rm -rf dist-headless && rm -rf node_modules/.vite",
     "vendor:firmware": "node scripts/vendor-firmware.mjs",
@@ -29,6 +29,17 @@
     "pretest": "npm run generate:docs && npm run build:headless",
     "test": "tsx --tsconfig tsconfig.spec.json --test $(find src -name '*.spec.ts')"
   },
+  "wendooTarget": {
+    "packageScript": "package",
+    "hostApp": {
+      "path": "dist",
+      "script": "build"
+    },
+    "rehearsalAdapter": {
+      "path": "dist-headless/rehearsal/adapter.js",
+      "script": "build:headless"
+    }
+  },
   "wireit": {
     "build:headless": {
       "command": "node scripts/build-headless-adapter.mjs",
@@ -36,10 +47,35 @@
         "scripts/build-headless-adapter.mjs",
         "package.json",
         "wendoo.json",
+        "../../external/wendoo-lang/packages/core/package.json",
+        "../../external/wendoo-lang/packages/core/dist/node/**",
+        "../../external/wendoo-lang/packages/core/dist/esm/**",
+        "../../external/wendoo-lang/packages/service-api/package.json",
+        "../../external/wendoo-lang/packages/service-api/dist/**",
+        "../../external/wendoo-lang/packages/app-host/package.json",
+        "../../external/wendoo-lang/packages/app-host/dist/**",
+        "../../external/wendoo-lang/packages/assistant-relay/package.json",
+        "../../external/wendoo-lang/packages/assistant-relay/dist/**",
+        "../../external/wendoo-lang/packages/assistant-bridge/package.json",
+        "../../external/wendoo-lang/packages/assistant-bridge/dist/**",
+        "../../external/wendoo-lang/packages/ui/package.json",
+        "../../external/wendoo-lang/packages/ui/src/**",
+        "../../external/wendoo-lang/packages/assistant-panel/package.json",
+        "../../external/wendoo-lang/packages/assistant-panel/src/**",
+        "../../external/wendoo-lang/packages/bridge-protocol/package.json",
+        "../../external/wendoo-lang/packages/bridge-protocol/dist/**",
+        "../../external/wendoo-lang/packages/bridge-client/package.json",
+        "../../external/wendoo-lang/packages/bridge-client/dist/**",
+        "../../external/wendoo-lang/packages/ts-compiler/package.json",
+        "../../external/wendoo-lang/packages/ts-compiler/dist/**",
+        "../../external/wendoo-lang/packages/bridge-app/package.json",
+        "../../external/wendoo-lang/packages/bridge-app/dist/**",
+        "../../external/wendoo-lang/packages/docs/package.json",
+        "../../external/wendoo-lang/packages/docs/src/**",
         "../../packages/wodal/package.json",
         "../../packages/wodal/dist/**",
-        "../../external/wendoo-lang/packages/*/package.json",
-        "../../external/wendoo-lang/packages/*/dist/**"
+        "../../external/wendoo-lang/packages/cli/package.json",
+        "../../external/wendoo-lang/packages/cli/dist/**"
       ],
       "output": [
         "dist-headless/**"
