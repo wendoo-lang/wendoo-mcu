@@ -97,6 +97,21 @@ accept it in review as "moot for now" -- "moot for the first consumer" is exactl
 how a structural defect reaches production. Escalate it as a blocking design flaw
 and fix the mechanism.
 
+## Right-Layer Placement
+
+Change-avoidance is not a virtue. When data or behavior belongs to a component -- by the
+spec's assignment of responsibility, or by the plain ownership question "who executes this,
+who is the source of truth for this" -- the correct change is to that component, even when it
+is core, platform, or otherwise expensive to touch. A cheaper change at the wrong layer is a
+parallel mechanism, and parallel mechanisms drift.
+
+- "No core change needed" is a claim to examine, not a merit to report. Ask what the
+  avoided change would have owned, and who owns it instead now.
+- Minimalism bounds WHAT gets built (no speculative machinery), never WHERE a needed thing
+  lives. The two questions are independent; answer both.
+- A change at the owning layer carries its conditions: the rationale stated where the work
+  is reviewed, the owning package's full gates, and direct tests for the new surface.
+
 ## Boundary Discipline
 
 Be critical about where code belongs.

@@ -1,0 +1,75 @@
+name: Build and test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Gate coverage: packages/wodal and apps/microbit-sim, each through its own
+# typecheck, check, and test scripts, plus the headless rehearsal adapter the
+# app publishes.
+jobs:
+  build:
+    name: Bootstrap and run the package gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      # Registry tarballs only; see the platform's build-graph workflow for why
+      # build output is not cached.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: "**/package-lock.json"
+
+      # Installs every package the repository holds and every platform package
+      # they reach, then builds the dependency dists in graph order.
+      - name: Bootstrap
+        run: npm run bootstrap
+
+      - name: Typecheck wodal
+        working-directory: packages/wodal
+        run: npm run typecheck
+
+      - name: Check wodal
+        working-directory: packages/wodal
+        run: npm run check:only
+
+      - name: Test wodal
+        working-directory: packages/wodal
+        run: npm test
+
+      - name: Typecheck microbit-sim
+        working-directory: apps/microbit-sim
+        run: npm run typecheck
+
+      - name: Check microbit-sim
+        working-directory: apps/microbit-sim
+        run: npm run check:only
+
+      # Builds the artifact the target package publishes for headless rehearsal,
+      # which the microbit-sim test step consumes.
+      - name: Build the headless rehearsal adapter
+        working-directory: apps/microbit-sim
+        run: npm run build:headless
+
+      - name: Test microbit-sim
+        working-directory: apps/microbit-sim
+        run: npm test
+
+      - name: Assert a clean tree
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "The build modified tracked files or left new ones behind:"
+            git status --porcelain
+            git submodule foreach --recursive git status --porcelain
+            exit 1
+          fi

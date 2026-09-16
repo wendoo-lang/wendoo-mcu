@@ -136,10 +136,27 @@ def dual_worktree(args):
     }
 
 
+# The one foreach form that is a read: running `git status` in every submodule
+# (the CI clean-tree assert). Any other foreach command still blocks.
+FOREACH_STATUS = re.compile(r"^git\s+status(\s|$)")
+
+
+def _foreach_is_status_read(args):
+    rest = list(args)
+    while rest and rest[0].startswith("-"):
+        rest.pop(0)
+    if not rest or rest[0] != "foreach":
+        return False
+    command = [a for a in rest[1:] if a not in ("--recursive", "-q", "--quiet")]
+    return bool(command) and bool(FOREACH_STATUS.match(" ".join(command)))
+
+
 def dual_submodule(args):
+    if _first_subverb(args) == "foreach":
+        return not _foreach_is_status_read(args)
     return _first_subverb(args) in {
         "add", "update", "init", "deinit", "set-url", "set-branch", "sync",
-        "absorbgitdirs", "foreach",
+        "absorbgitdirs",
     }
 
 

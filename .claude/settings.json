@@ -75,6 +75,11 @@
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/lowering-test-gate.py\"",
             "statusMessage": "Checking lowering test coverage..."
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/ownership-gate.py\"",
+            "statusMessage": "Checking new exports carry ownership statements..."
           }
         ]
       }
@@ -91,6 +96,11 @@
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/lowering-test-gate.py\"",
             "statusMessage": "Checking lowering test coverage..."
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/ownership-gate.py\"",
+            "statusMessage": "Checking new exports carry ownership statements..."
           }
         ]
       }
