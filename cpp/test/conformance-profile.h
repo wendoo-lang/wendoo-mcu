@@ -49,6 +49,10 @@ inline constexpr HostActionIds Counter{TARGET_ACTION_ID_BASE + 6, TARGET_FUNC_ID
 inline constexpr HostActionIds DeferCancel{TARGET_ACTION_ID_BASE + 7, TARGET_FUNC_ID_BASE + 7};
 /** Asynchronous sensor whose handle resolves to its value argument after a stated tick count. */
 inline constexpr HostActionIds DeferRead{TARGET_ACTION_ID_BASE + 8, TARGET_FUNC_ID_BASE + 8};
+/** Synchronous actuator over a String-typed argument slot, returning its argument. */
+inline constexpr HostActionIds EmitText{TARGET_ACTION_ID_BASE + 9, TARGET_FUNC_ID_BASE + 10};
+/** Synchronous actuator over a Boolean-typed argument slot, returning its argument. */
+inline constexpr HostActionIds EmitFlag{TARGET_ACTION_ID_BASE + 10, TARGET_FUNC_ID_BASE + 11};
 } // namespace ConformanceHostActions
 
 /**
@@ -67,12 +71,15 @@ inline constexpr uint32_t DeferAdd = TARGET_FUNC_ID_BASE + 9;
 } // namespace ConformanceOperators
 
 /** Number of conformance host-action bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostActionBindingCount = 9;
+inline constexpr uint32_t kConformanceHostActionBindingCount = 11;
 
 /** Number of conformance host-function bindings the profile registers. */
 inline constexpr uint32_t kConformanceHostFuncBindingCount = 1;
 
-/** Arg-buffer slot of the value argument of `echo`, `emit`, `defer echo`, and `defer read`. */
+/**
+ * Arg-buffer slot of the value argument of `echo`, `emit`, `defer echo`,
+ * `defer read`, `emit text`, and `emit flag`.
+ */
 inline constexpr uint32_t kConformanceValueSlot = 0;
 
 /** Arg-buffer slot of the whole-tick count of `defer echo`. */
@@ -287,6 +294,14 @@ inline Status execDeferAdd(void* hostData, ExecutionContext& ctx, Span<const Val
   return Status::ok();
 }
 
+inline Value execEmitText(void*, ExecutionContext&, Span<const Value> args) {
+  return valueArg(args, kConformanceValueSlot);
+}
+
+inline Value execEmitFlag(void*, ExecutionContext&, Span<const Value> args) {
+  return valueArg(args, kConformanceValueSlot);
+}
+
 inline Value execFault(void*, ExecutionContext&, Span<const Value>) {
   return Value::error(ErrorCode::ScriptError);
 }
@@ -314,7 +329,7 @@ inline Value execCounter(void*, ExecutionContext& ctx, Span<const Value>) {
 /**
  * Builds the conformance host-action binding table over `world`, one entry per
  * profile action in registry order: echo, emit, defer echo, defer fail, fault,
- * signal, counter, defer cancel, defer read.
+ * signal, counter, defer cancel, defer read, emit text, emit flag.
  * `world` must outlive every dispatch through the table.
  *
  * @param world - Deterministic world the deferred actions park their handles in.
@@ -336,6 +351,10 @@ makeConformanceHostActionBindings(ConformanceWorld& world) {
        &conformance_detail::execDeferCancel},
       {ConformanceHostActions::DeferRead.actionId, nullptr, nullptr, &world,
        &conformance_detail::execDeferRead},
+      {ConformanceHostActions::EmitText.actionId, &conformance_detail::execEmitText, nullptr,
+       &world},
+      {ConformanceHostActions::EmitFlag.actionId, &conformance_detail::execEmitFlag, nullptr,
+       &world},
   }};
 }
 
