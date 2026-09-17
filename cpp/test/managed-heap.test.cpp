@@ -5,6 +5,7 @@
 #include "core/runtime/managed-heap.h"
 #include "core/runtime/program.h"
 #include "core/runtime/region-arena.h"
+#include "core/runtime/type-registry.h"
 #include "core/runtime/value.h"
 #include "core/runtime/vm.h"
 
@@ -27,11 +28,15 @@ using wendoo::MapKey;
 using wendoo::MapObject;
 using wendoo::ProgramImage;
 using wendoo::RegionArena;
+using wendoo::RegisteredStructSlotCount;
 using wendoo::Span;
 using wendoo::Status;
 using wendoo::StringObject;
 using wendoo::StringRef;
 using wendoo::StructObject;
+using wendoo::TypeEntry;
+using wendoo::TypeRegistry;
+using wendoo::TypeTag;
 using wendoo::Value;
 
 namespace {
@@ -400,6 +405,96 @@ TEST_CASE("a deep copy passes non-struct values through by reference") {
   Value number = Value::number(3.0f);
   REQUIRE(heap.deepCopy(number, &roots, copy));
   CHECK(copy.asNumber() == 3.0f);
+}
+
+TEST_CASE("a deep copy passes a native struct through by reference") {
+  // A two-atom type table with a registry installed: index 0 (atom 1024) has a
+  // registered slot count and is a managed struct type; index 1 (atom 2048)
+  // has none and classifies as native, exactly as GC tracing classifies it.
+  TypeEntry entries[2] = {};
+  entries[0].tag = TypeTag::Atom;
+  entries[0].atom.atomId = 1024;
+  entries[1].tag = TypeTag::Atom;
+  entries[1].atom.atomId = 2048;
+  ProgramImage program{};
+  program.types = Span<const TypeEntry>(entries, 2);
+
+  std::vector<uint8_t> storage(8 * 1024);
+  RegionArena arena(Span<uint8_t>(storage.data(), storage.size()));
+  ManagedHeap heap(arena, &program);
+  TypeRegistry types(program);
+  const RegisteredStructSlotCount registered[] = {{1024, 2}};
+  types.setRegisteredStructSlotCounts(Span<const RegisteredStructSlotCount>(registered, 1));
+  heap.setTypes(&types);
+  RootSet roots;
+
+  // The native struct's handle is an opaque host token no heap object backs;
+  // the copy is the same value, and no heap struct is allocated for it.
+  const Value native = Value::structValue(1, 0x1234);
+  Value copy;
+  REQUIRE(heap.deepCopy(native, &roots, copy));
+  CHECK(copy.isStruct());
+  CHECK(copy.typeId() == native.typeId());
+  CHECK(copy.structHandle() == native.structHandle());
+  CHECK(heap.liveStructCount() == 0u);
+
+  // The registered atom struct is a managed heap object; the same call still
+  // deep-copies it into a fresh object.
+  Value managed;
+  REQUIRE(heap.newStruct(0, 2, &roots, managed));
+  roots.roots.push_back(managed);
+  heap.structSet(heap.structOf(managed), 0, Value::number(7.0f));
+  Value managedCopy;
+  REQUIRE(heap.deepCopy(managed, &roots, managedCopy));
+  REQUIRE(managedCopy.isStruct());
+  CHECK(managedCopy.structHandle() != managed.structHandle());
+  CHECK(heap.structGet(heap.structOf(managedCopy), 0).asNumber() == 7.0f);
+}
+
+TEST_CASE("a deep copy materializes a native struct through its type's snapshot hook") {
+  // One-atom type table with no registered slot count: index 0 (atom 2048)
+  // classifies as native. Its binding registers a snapshot that resolves the
+  // lazy host token 0x1234 to the concrete token 0x5678.
+  TypeEntry entries[1] = {};
+  entries[0].tag = TypeTag::Atom;
+  entries[0].atom.atomId = 2048;
+  ProgramImage program{};
+  program.types = Span<const TypeEntry>(entries, 1);
+
+  std::vector<uint8_t> storage(8 * 1024);
+  RegionArena arena(Span<uint8_t>(storage.data(), storage.size()));
+  ManagedHeap heap(arena, &program);
+  TypeRegistry types(program);
+  const wendoo::NativeStructTypeBinding bindings[] = {{
+      0,
+      [](const Value&, uint32_t) { return wendoo::kNilValue; },
+      nullptr,
+      [](const Value& source) {
+        return source.structHandle() == 0x1234 ? Value::structValue(source.typeId(), 0x5678)
+                                               : source;
+      },
+  }};
+  types.setNativeStructBindings(Span<const wendoo::NativeStructTypeBinding>(bindings, 1));
+  heap.setTypes(&types);
+  RootSet roots;
+
+  const Value lazy = Value::structValue(0, 0x1234);
+  Value copy;
+  REQUIRE(heap.deepCopy(lazy, &roots, copy));
+  REQUIRE(copy.isStruct());
+  CHECK(copy.typeId() == lazy.typeId());
+  CHECK(copy.structHandle() == 0x5678u);
+  CHECK(heap.liveStructCount() == 0u);
+
+  // A registered native struct type's value resolves no StructObject, and a
+  // slot read through the heap API yields nil.
+  CHECK(heap.structOf(lazy) == nullptr);
+  CHECK(heap.structGet(heap.structOf(lazy), 0).isNil());
+
+  // A copy of the already-concrete value passes it through unchanged.
+  Value again;
+  REQUIRE(heap.deepCopy(copy, &roots, again));
+  CHECK(again.structHandle() == 0x5678u);
 }
 
 TEST_CASE("a deep copy of a self-referential struct terminates") {

@@ -377,6 +377,11 @@ MapObject* ManagedHeap::map(const Value& value) const {
 }
 
 StructObject* ManagedHeap::structOf(const Value& value) const {
+  // A value of a registered native struct type carries an opaque host token,
+  // not a heap handle; there is no StructObject to resolve for it.
+  if (types_ != nullptr && types_->isNativeStructType(value.typeId())) {
+    return nullptr;
+  }
   return static_cast<StructObject*>(fromHandle(value.structHandle()));
 }
 
@@ -385,11 +390,11 @@ CapturesObject* ManagedHeap::captures(uint32_t handle) const {
 }
 
 Value ManagedHeap::structGet(const StructObject* obj, uint32_t fieldId) const {
-  return fieldId < obj->slotCount ? obj->slots[fieldId] : kNilValue;
+  return obj != nullptr && fieldId < obj->slotCount ? obj->slots[fieldId] : kNilValue;
 }
 
 void ManagedHeap::structSet(StructObject* obj, uint32_t fieldId, const Value& value) {
-  if (fieldId < obj->slotCount) {
+  if (obj != nullptr && fieldId < obj->slotCount) {
     obj->slots[fieldId] = value;
   }
 }
@@ -398,6 +403,14 @@ bool ManagedHeap::deepCopyInto(const Value& value, DeepCopyRoots& roots, Value& 
   if (!value.isStruct()) {
     // Lists, maps, primitives, enums, functions: copied by reference.
     out = value;
+    return true;
+  }
+  // A native struct value (an injected execution context, a device receiver)
+  // is not a heap object and holds no heap handle; it is copied by reference,
+  // unless its type registers a snapshot, which materializes the handle.
+  if (types_ != nullptr && !types_->isManagedStructType(value.typeId())) {
+    const NativeStructSnapshot snapshot = types_->nativeStructSnapshot(value.typeId());
+    out = snapshot != nullptr ? snapshot(value) : value;
     return true;
   }
   StructObject* src = structOf(value);

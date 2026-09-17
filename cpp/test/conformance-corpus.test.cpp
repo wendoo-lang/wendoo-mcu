@@ -64,10 +64,11 @@ constexpr const char* kProfilePrecision = "f32";
 constexpr DeviceProfileCaps kConformanceCaps{1000, 10000, 100, 256, 256, 64, 16, 8};
 
 /**
- * Type-atom ranges the conformance profile registers. It declares no target and
- * no shared type atoms, so a corpus binary referencing either fails to decode.
+ * Type-atom ranges the conformance profile registers: three target type atoms
+ * (the `Point`, `Anchor`, and `Target` structs) and no shared type atoms, so
+ * a corpus binary referencing any other atom fails to decode.
  */
-constexpr ProgramReaderOptions kConformanceReaderOptions{0, 0};
+constexpr ProgramReaderOptions kConformanceReaderOptions{3, 0};
 
 /** One corpus case as the manifest declares it. */
 struct CorpusCase {
@@ -207,10 +208,18 @@ std::string runTrace(const std::vector<uint8_t>& wire, const std::vector<float>&
   wendoo::VmRng rng;
   wendoo::ManagedHeap heap(arena, &image);
   wendoo::TypeRegistry types(image);
+  const auto registeredStructs = wendoo::test::makeConformanceRegisteredStructSlotCounts();
+  types.setRegisteredStructSlotCounts({registeredStructs.data(), registeredStructs.size()});
+  const auto nativeStructs = wendoo::test::makeConformanceNativeStructBindings();
+  types.setNativeStructBindings({nativeStructs.data(), nativeStructs.size()});
+  heap.setTypes(&types);
+  wendoo::test::ConformanceNativeEnv nativeEnv;
+  wendoo::test::gConformanceNativeEnv = &nativeEnv;
   writer.setHeap(&heap);
   ConformanceWorld world;
+  wendoo::test::ConformancePointEnv pointEnv;
   const auto coreBindings = wendoo::makeCoreHostActionBindings(coreEnv);
-  const auto conformanceBindings = wendoo::test::makeConformanceHostActionBindings(world);
+  const auto conformanceBindings = wendoo::test::makeConformanceHostActionBindings(world, pointEnv);
   ConformanceActionTable actions = combineActionTable(coreBindings, conformanceBindings);
   const auto hostFuncs = wendoo::test::makeConformanceHostFuncBindings(world);
 
@@ -228,6 +237,10 @@ std::string runTrace(const std::vector<uint8_t>& wire, const std::vector<float>&
   coreEnv.roots = &scheduler;
   coreEnv.program = &image;
   coreEnv.ruleLiveness = &scheduler;
+  pointEnv.world = &world;
+  pointEnv.heap = &heap;
+  pointEnv.types = &types;
+  pointEnv.roots = &scheduler;
 
   REQUIRE(brain.startup().isOk());
 
@@ -240,6 +253,7 @@ std::string runTrace(const std::vector<uint8_t>& wire, const std::vector<float>&
     REQUIRE(brain.think(timeMs).isOk());
     lastThinkTimeMs = timeMs;
   }
+  wendoo::test::gConformanceNativeEnv = nullptr;
   return sink.text();
 }
 

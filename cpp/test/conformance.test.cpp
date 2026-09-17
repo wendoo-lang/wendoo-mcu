@@ -252,7 +252,8 @@ TEST_CASE("opcode coverage derived from the shared conformance corpus binaries")
       const std::vector<uint8_t> wire =
           readFileBytes(std::string(wendoo::test::kConformanceCorpusDir) + "/" + name);
       RegionArena arena(Span<uint8_t>(arenaStorage.data(), arenaStorage.size()));
-      constexpr ProgramReaderOptions options{0, 0};
+      // One target type atom (the conformance Point struct), no shared atoms.
+      constexpr ProgramReaderOptions options{1, 0};
       const Result<ProgramImage, LoadError> decoded =
           readProgramImage(ByteSpan(wire.data(), wire.size()), arena, options);
       if (!decoded.isOk()) {

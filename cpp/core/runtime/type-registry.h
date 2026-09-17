@@ -19,6 +19,14 @@ using NativeStructFieldGetter = Value (*)(const Value& source, uint32_t fieldId)
 using NativeStructFieldSetter = bool (*)(const Value& source, uint32_t fieldId, const Value& value);
 
 /**
+ * Materializes a native struct value's handle during deep copy (assignment):
+ * resolves a lazy handle (e.g. a resolver token) to the concrete value the
+ * copy stores. Mirrors `snapshotNative` in
+ * external/wendoo-lang/packages/core/src/runtime/type-defs.ts.
+ */
+using NativeStructSnapshot = Value (*)(const Value& source);
+
+/**
  * One native struct type's field accessors, keyed by the typeId a native struct
  * value of that type carries. The `getter` maps a source value and field id to
  * the field value; the `setter` writes a field and reports accept/reject.
@@ -32,6 +40,9 @@ struct NativeStructTypeBinding {
 
   /** Field writer, or null when the type rejects all field writes. */
   NativeStructFieldSetter setter;
+
+  /** Deep-copy handle snapshot, or null when the handle copies by reference. */
+  NativeStructSnapshot snapshot = nullptr;
 };
 
 /**
@@ -186,6 +197,9 @@ public:
     return entry.tag == TypeTag::Atom && registeredStructSlotCount(entry.atom.atomId, slotCount);
   }
 
+  /** Whether a struct value carrying `typeId` is of a registered native struct type. */
+  bool isNativeStructType(uint32_t typeId) const { return findNativeStruct(typeId) != nullptr; }
+
   /** The native field getter for a struct value carrying `typeId`, or null for a managed-slot
    * struct. */
   NativeStructFieldGetter nativeStructGetter(uint32_t typeId) const {
@@ -198,6 +212,13 @@ public:
   NativeStructFieldSetter nativeStructSetter(uint32_t typeId) const {
     const NativeStructTypeBinding* binding = findNativeStruct(typeId);
     return binding != nullptr ? binding->setter : nullptr;
+  }
+
+  /** The deep-copy handle snapshot for a struct value carrying `typeId`, or null when the handle
+   * copies by reference. */
+  NativeStructSnapshot nativeStructSnapshot(uint32_t typeId) const {
+    const NativeStructTypeBinding* binding = findNativeStruct(typeId);
+    return binding != nullptr ? binding->snapshot : nullptr;
   }
 
 private:
