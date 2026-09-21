@@ -64,6 +64,8 @@ inline constexpr HostActionIds DeferAnchor{TARGET_ACTION_ID_BASE + 12, TARGET_FU
 inline constexpr HostActionIds DeferTarget{TARGET_ACTION_ID_BASE + 13, TARGET_FUNC_ID_BASE + 14};
 /** Synchronous actuator returning void, receiving its repeated slot's arguments as one list. */
 inline constexpr HostActionIds EmitAll{TARGET_ACTION_ID_BASE + 14, TARGET_FUNC_ID_BASE + 15};
+/** Synchronous actuator returning void, destroying the world's one anchor host object. */
+inline constexpr HostActionIds DestroyAnchor{TARGET_ACTION_ID_BASE + 15, TARGET_FUNC_ID_BASE + 16};
 } // namespace ConformanceHostActions
 
 /**
@@ -79,6 +81,11 @@ namespace ConformanceOperators {
  * tick after its dispatch.
  */
 inline constexpr uint32_t DeferAdd = TARGET_FUNC_ID_BASE + 9;
+/**
+ * Synchronous infix `point plus`, evaluating to the fieldwise sum of its two
+ * `Point` operands.
+ */
+inline constexpr uint32_t PointAdd = TARGET_FUNC_ID_BASE + 17;
 } // namespace ConformanceOperators
 
 /**
@@ -171,6 +178,8 @@ struct ConformanceNativeEnv {
   mc_number_t anchorX = kConformanceAnchorX;
   /** `y` field of the world's one anchor host object. */
   mc_number_t anchorY = kConformanceAnchorY;
+  /** True once `destroy anchor` has run; a destroyed anchor designates nothing. */
+  bool anchorDestroyed = false;
   /** How many target resolutions have run; the first returns the first object. */
   uint32_t targetResolutions = 0;
 };
@@ -184,10 +193,10 @@ struct ConformanceNativeEnv {
 inline ConformanceNativeEnv* gConformanceNativeEnv = nullptr;
 
 /** Number of conformance host-action bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostActionBindingCount = 15;
+inline constexpr uint32_t kConformanceHostActionBindingCount = 16;
 
 /** Number of conformance host-function bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostFuncBindingCount = 1;
+inline constexpr uint32_t kConformanceHostFuncBindingCount = 2;
 
 /**
  * Arg-buffer slot of the value argument of `echo`, `emit`, `defer echo`,
@@ -256,12 +265,12 @@ struct ConformancePointEnv {
 };
 
 /**
- * Builds one `Point` struct reading: resolves the atom's program type index,
- * allocates the managed struct, and writes the two number field slots.
- * Returns nil when the env is incomplete, the program's type table carries no
- * `Point` atom entry, or the heap cannot back the allocation.
+ * Builds one closed `Point` struct carrying `x` and `y`: resolves the atom's
+ * program type index, allocates the managed struct, and writes the two number
+ * field slots. Returns nil when the env is incomplete, the program's type
+ * table carries no `Point` atom entry, or the heap cannot back the allocation.
  */
-inline Value buildConformancePoint(const ConformancePointEnv& env) {
+inline Value buildConformancePointAt(const ConformancePointEnv& env, mc_number_t x, mc_number_t y) {
   if (env.heap == nullptr || env.types == nullptr) {
     return kNilValue;
   }
@@ -274,9 +283,14 @@ inline Value buildConformancePoint(const ConformancePointEnv& env) {
     return kNilValue;
   }
   StructObject* obj = env.heap->structOf(out);
-  env.heap->structSet(obj, kConformancePointFieldX, Value::number(kConformancePointX));
-  env.heap->structSet(obj, kConformancePointFieldY, Value::number(kConformancePointY));
+  env.heap->structSet(obj, kConformancePointFieldX, Value::number(x));
+  env.heap->structSet(obj, kConformancePointFieldY, Value::number(y));
   return out;
+}
+
+/** Builds one `Point` struct reading, the value every settled `defer point` resolves to. */
+inline Value buildConformancePoint(const ConformancePointEnv& env) {
+  return buildConformancePointAt(env, kConformancePointX, kConformancePointY);
 }
 
 /**
@@ -481,10 +495,22 @@ inline Status execDeferPoint(void* hostData, ExecutionContext& ctx, Span<const V
   return Status::ok();
 }
 
-/** Reads an `Anchor` field off the env's anchor host object; nil without an env or a declared
+/**
+ * The replay env behind a live anchor host object, or null when there is no
+ * replay env or the world destroyed the object.
+ */
+inline ConformanceNativeEnv* resolveAnchorEnv() {
+  ConformanceNativeEnv* env = gConformanceNativeEnv;
+  if (env == nullptr || env->anchorDestroyed) {
+    return nullptr;
+  }
+  return env;
+}
+
+/** Reads an `Anchor` field off the live anchor host object; nil without one or a declared
  * field. */
 inline Value anchorFieldGetter(const Value& /*source*/, uint32_t fieldId) {
-  const ConformanceNativeEnv* env = gConformanceNativeEnv;
+  const ConformanceNativeEnv* env = resolveAnchorEnv();
   if (env == nullptr) {
     return kNilValue;
   }
@@ -497,10 +523,10 @@ inline Value anchorFieldGetter(const Value& /*source*/, uint32_t fieldId) {
   return kNilValue;
 }
 
-/** Writes an `Anchor` field of the env's anchor host object; rejects without an env, a number, or a
+/** Writes an `Anchor` field of the live anchor host object; rejects without one, a number, or a
  * declared field. */
 inline bool anchorFieldSetter(const Value& /*source*/, uint32_t fieldId, const Value& value) {
-  ConformanceNativeEnv* env = gConformanceNativeEnv;
+  ConformanceNativeEnv* env = resolveAnchorEnv();
   if (env == nullptr || !value.isNumber()) {
     return false;
   }
@@ -583,6 +609,58 @@ inline Status execDeferTarget(void* hostData, ExecutionContext& ctx, Span<const 
   return Status::ok();
 }
 
+/** Destroys the world's one anchor host object, so every later field hook of the type resolves
+ * nothing. */
+inline Value execDestroyAnchor(void*, ExecutionContext&, Span<const Value>) {
+  ConformanceNativeEnv* env = gConformanceNativeEnv;
+  if (env != nullptr) {
+    env->anchorDestroyed = true;
+  }
+  return kVoidValue;
+}
+
+/**
+ * Reads the number in field `fieldId` of a managed `Point` operand into `out`.
+ * Returns false when the env is incomplete or the operand carries no such
+ * number.
+ */
+inline bool pointFieldNumber(const ConformancePointEnv& env, const Value& operand, uint32_t fieldId,
+                             mc_number_t& out) {
+  if (env.heap == nullptr || env.types == nullptr || !operand.isStruct() ||
+      !env.types->isManagedStructType(operand.typeId())) {
+    return false;
+  }
+  const Value field = env.heap->structGet(env.heap->structOf(operand), fieldId);
+  if (!field.isNumber()) {
+    return false;
+  }
+  out = field.asNumber();
+  return true;
+}
+
+inline Status execPointAdd(void* hostData, Span<const Value> args, Value& result) {
+  ConformancePointEnv* env = static_cast<ConformancePointEnv*>(hostData);
+  if (env == nullptr) {
+    result = kNilValue;
+    return Status::ok();
+  }
+  const Value lhs = valueArg(args, kOperatorLhsSlot);
+  const Value rhs = valueArg(args, kOperatorRhsSlot);
+  mc_number_t lhsX = 0;
+  mc_number_t lhsY = 0;
+  mc_number_t rhsX = 0;
+  mc_number_t rhsY = 0;
+  if (!pointFieldNumber(*env, lhs, kConformancePointFieldX, lhsX) ||
+      !pointFieldNumber(*env, lhs, kConformancePointFieldY, lhsY) ||
+      !pointFieldNumber(*env, rhs, kConformancePointFieldX, rhsX) ||
+      !pointFieldNumber(*env, rhs, kConformancePointFieldY, rhsY)) {
+    result = kNilValue;
+    return Status::ok();
+  }
+  result = buildConformancePointAt(*env, lhsX + rhsX, lhsY + rhsY);
+  return Status::ok();
+}
+
 inline Value execEmitText(void*, ExecutionContext&, Span<const Value> args) {
   return valueArg(args, kConformanceValueSlot);
 }
@@ -619,9 +697,9 @@ inline Value execCounter(void*, ExecutionContext& ctx, Span<const Value>) {
  * Builds the conformance host-action binding table over `world`, one entry per
  * profile action in registry order: echo, emit, defer echo, defer fail, fault,
  * signal, counter, defer cancel, defer read, emit text, emit flag, defer
- * point, defer anchor, defer target, emit all. `world` and `pointEnv` must outlive every
- * dispatch through the table, and the caller fills `pointEnv`'s fields before
- * the first `defer point` settlement is due.
+ * point, defer anchor, defer target, emit all, destroy anchor. `world` and
+ * `pointEnv` must outlive every dispatch through the table, and the caller
+ * fills `pointEnv`'s fields before the first `defer point` settlement is due.
  *
  * @param world - Deterministic world the deferred actions park their handles in.
  * @param pointEnv - Construction env the `defer point` binding settles through.
@@ -654,6 +732,8 @@ makeConformanceHostActionBindings(ConformanceWorld& world, ConformancePointEnv& 
       {ConformanceHostActions::DeferTarget.actionId, nullptr, nullptr, &world,
        &conformance_detail::execDeferTarget},
       {ConformanceHostActions::EmitAll.actionId, &conformance_detail::execEmit, nullptr, &world},
+      {ConformanceHostActions::DestroyAnchor.actionId, &conformance_detail::execDestroyAnchor,
+       nullptr, &world},
   }};
 }
 
@@ -696,16 +776,19 @@ makeConformanceRegisteredStructSlotCounts() {
 }
 
 /**
- * Builds the conformance host-function binding table over `world`, one entry
- * per profile operator overload: `defer plus`. `world` must outlive every
- * dispatch through the table.
+ * Builds the conformance host-function binding table, one entry per profile
+ * operator overload: `defer plus` and `point plus`. `world` and `pointEnv`
+ * must outlive every dispatch through the table, and the caller fills
+ * `pointEnv`'s fields before the first `point plus` dispatch.
  *
  * @param world - Deterministic world the deferred overloads park their handles in.
+ * @param pointEnv - Heap, type registry, and roots `point plus` builds its result through.
  */
 inline std::array<TargetHostFuncBinding, kConformanceHostFuncBindingCount>
-makeConformanceHostFuncBindings(ConformanceWorld& world) {
+makeConformanceHostFuncBindings(ConformanceWorld& world, ConformancePointEnv& pointEnv) {
   return {{
       {ConformanceOperators::DeferAdd, nullptr, &world, &conformance_detail::execDeferAdd},
+      {ConformanceOperators::PointAdd, &conformance_detail::execPointAdd, &pointEnv},
   }};
 }
 

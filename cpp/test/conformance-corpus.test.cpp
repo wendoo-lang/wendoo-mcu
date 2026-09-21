@@ -221,7 +221,7 @@ std::string runTrace(const std::vector<uint8_t>& wire, const std::vector<float>&
   const auto coreBindings = wendoo::makeCoreHostActionBindings(coreEnv);
   const auto conformanceBindings = wendoo::test::makeConformanceHostActionBindings(world, pointEnv);
   ConformanceActionTable actions = combineActionTable(coreBindings, conformanceBindings);
-  const auto hostFuncs = wendoo::test::makeConformanceHostFuncBindings(world);
+  const auto hostFuncs = wendoo::test::makeConformanceHostFuncBindings(world, pointEnv);
 
   ExecutionContext ctx;
   RuntimeSurface surface{&ctx, {actions.data(), actions.size()}, &tap, &heap};
