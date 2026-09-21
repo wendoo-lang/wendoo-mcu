@@ -8,6 +8,7 @@
 #include "core/runtime/managed-heap.h"
 #include "core/runtime/program.h"
 #include "core/runtime/region-arena.h"
+#include "core/runtime/type-registry.h"
 #include "core/runtime/value.h"
 #include "core/runtime/vm.h"
 #include "vm-harness.h"
@@ -1312,7 +1313,89 @@ struct HeapHarness {
   wendoo::RuntimeSurface surface{nullptr, {}, nullptr, &heap};
 };
 
+/** Field getter of the rejecting native struct type: every field reads nil. */
+Value rejectingTypeGetter(const Value& /*source*/, uint32_t /*fieldId*/) { return kNilValue; }
+
+/** Field setter of the rejecting native struct type: every write is refused. */
+bool rejectingTypeSetter(const Value& /*source*/, uint32_t /*fieldId*/, const Value& /*value*/) {
+  return false;
+}
+
+/**
+ * TypeId the rejecting native struct binding is keyed by: the type-table index
+ * of the struct type the tests below build their values from.
+ */
+constexpr uint32_t kRejectingTypeId = 0;
+
+const std::array<wendoo::NativeStructTypeBinding, 1> kRejectingStructBindings = {
+    wendoo::NativeStructTypeBinding{kRejectingTypeId, &rejectingTypeGetter, &rejectingTypeSetter,
+                                    nullptr}};
+
+/** A heap-backed surface whose type registry resolves the rejecting native struct type. */
+struct RejectingTypeHarness {
+  explicit RejectingTypeHarness(const ProgramImage& image) : types(image) {
+    types.setNativeStructBindings(
+        {kRejectingStructBindings.data(), kRejectingStructBindings.size()});
+    surface.types = &types;
+  }
+
+  std::vector<uint8_t> storage = std::vector<uint8_t>(16 * 1024);
+  RegionArena arena{Span<uint8_t>(storage.data(), storage.size())};
+  wendoo::ManagedHeap heap{arena};
+  wendoo::TypeRegistry types;
+  wendoo::RuntimeSurface surface{nullptr, {}, nullptr, &heap};
+};
+
 } // namespace
+
+TEST_CASE("STRUCT_SET_FIELD faults ScriptError when the registered field setter rejects") {
+  ProgramBuilder b;
+  b.poolString("Pair");
+  b.structType(0, 1);
+  b.number(7.0f);
+  // s.0 = 7 dispatches the type's setter, which refuses the write.
+  b.beginFunction()
+      .instr(Op::STRUCT_NEW, 0, 0)
+      .instr(Op::PUSH_CONST_NUM, 0)
+      .instr(Op::STRUCT_SET_FIELD, 0)
+      .instr(Op::RET);
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  RejectingTypeHarness h(image);
+  Machine machine;
+  const RunResult result = runProgram(machine, image, {}, 1000, h.surface);
+  REQUIRE(result.status == RunStatus::Fault);
+  CHECK(result.error == ErrorCode::ScriptError);
+  // pc 2 is the STRUCT_SET_FIELD instruction.
+  CHECK(result.site.pc == 2);
+}
+
+TEST_CASE("SET_FIELD faults ScriptError when the registered field setter rejects") {
+  ProgramBuilder b;
+  b.poolString("Pair");
+  b.poolString("x");
+  b.structType(0, 1, {{1, 0}});
+  b.number(7.0f);
+  // The name resolves to field 0, so the write reaches the type's setter,
+  // which refuses it.
+  b.beginFunction()
+      .instr(Op::STRUCT_NEW, 0, 0)
+      .instr(Op::PUSH_CONST_STR, 1)
+      .instr(Op::PUSH_CONST_NUM, 0)
+      .instr(Op::SET_FIELD)
+      .instr(Op::RET);
+  std::vector<uint8_t> storage(16 * 1024);
+  const ProgramImage image = b.build(storage);
+
+  RejectingTypeHarness h(image);
+  Machine machine;
+  const RunResult result = runProgram(machine, image, {}, 1000, h.surface);
+  REQUIRE(result.status == RunStatus::Fault);
+  CHECK(result.error == ErrorCode::ScriptError);
+  // pc 3 is the SET_FIELD instruction.
+  CHECK(result.site.pc == 3);
+}
 
 TEST_CASE("STRUCT_SET_FIELD is a pure store visible through every struct reference") {
   ProgramBuilder b;
