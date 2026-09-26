@@ -15,6 +15,7 @@
         "src/extension-tests/**/*.ts",
         "src/brain/image-literal-type.tsx",
         "src/components/BrainDiagnostics.tsx",
+        "src/components/BridgeConnectionStatus.tsx",
         "src/components/CompileDiagnosticsConsole.tsx",
         "src/components/ConsoleOutputList.tsx",
         "src/components/GesturePicker.tsx",

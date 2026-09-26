@@ -23,6 +23,7 @@ import {
   type AppBridgeState,
   AppEnvironmentHost,
   type BrainDiagnosticEntry,
+  type BridgeSessionErrorCode,
   collectBrainErrorDiagnostics,
   collectBrainTileCompileDiagnostics,
   createFolderCompileDiagnosticsPublisher,
@@ -944,9 +945,13 @@ export class MicrobitSimEnvironmentStore {
     this.host.connectBridge();
   }
 
-  /** Stops the VS Code bridge connection. */
-  disconnectBridge(): void {
-    this.host.disconnectBridge();
+  /**
+   * Ends the VS Code bridge session on purpose -- VS Code is told it ended --
+   * and discards the bridge handle, so the next connect presents whatever
+   * binding token is persisted then.
+   */
+  endBridge(): void {
+    this.host.endBridge();
   }
 
   /** Subscribes to bridge connection-status changes for `useSyncExternalStore`. */
@@ -967,6 +972,26 @@ export class MicrobitSimEnvironmentStore {
   /** Snapshot of the current bridge join code, or undefined when none is active. */
   getBridgeJoinCodeSnapshot = (): string | undefined => {
     return this.host.getBridgeJoinCodeSnapshot();
+  };
+
+  /** Subscribes to bridge error-code changes for `useSyncExternalStore`. */
+  subscribeToBridgeErrorCode = (listener: () => void): (() => void) => {
+    return this.host.subscribeToBridgeErrorCode(listener);
+  };
+
+  /** Stable code of the failure that ended the bridge's latest connection, or undefined when none did. */
+  getBridgeErrorCodeSnapshot = (): BridgeSessionErrorCode | undefined => {
+    return this.host.getBridgeErrorCodeSnapshot();
+  };
+
+  /** Subscribes to bridge pairing changes for `useSyncExternalStore`. */
+  subscribeToBridgePaired = (listener: () => void): (() => void) => {
+    return this.host.subscribeToBridgePaired(listener);
+  };
+
+  /** Whether the bridge's session is connected with VS Code: welcomed, and VS Code not away since. */
+  getBridgePairedSnapshot = (): boolean => {
+    return this.host.getBridgePairedSnapshot();
   };
 
   /**

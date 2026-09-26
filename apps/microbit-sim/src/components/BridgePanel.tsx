@@ -1,30 +1,35 @@
 import { useDocsSidebar } from "@wendoo/docs";
 import { Switch } from "@wendoo/ui";
-import { Check, CircleHelp, Copy } from "lucide-react";
+import { CircleHelp } from "lucide-react";
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { useMicrobitSimEnvironment } from "@/contexts/microbit-sim-environment";
 import { clearBindingToken } from "@/services/binding-token-persistence";
+import { BridgeConnectionStatus } from "./BridgeConnectionStatus";
 import { CompileDiagnosticsConsole } from "./CompileDiagnosticsConsole";
 
 /**
- * Developer panel: the VS Code bridge section (an enable toggle, a
- * connection-status readout, a copyable join code, and help affordances that
- * open the docs sidebar to the "Connect VS Code" concept page) and the
- * build-output section (the latest workspace compile's diagnostics as
- * console output, present only when the compile carries diagnostics). The
+ * Developer panel: the VS Code bridge section (an enable toggle, the
+ * connection readout -- status, a copyable join code, and the notice of a
+ * failure holding the connection down with its way back -- and help
+ * affordances that open the docs sidebar to the "Connect VS Code" concept
+ * page) and the build-output section (the latest workspace compile's
+ * diagnostics as console output, present only when the compile carries
+ * diagnostics). The
  * enable toggle drives the per-project `bridgeEnabled` preference; an
- * enabled bridge connects on mount and whenever the toggle flips on.
+ * enabled bridge connects on mount and whenever the toggle flips on, and
+ * turning it off ends the session and forgets its binding token.
  */
 export function BridgePanel() {
   const store = useMicrobitSimEnvironment();
   const bridgeStatus = useSyncExternalStore(store.subscribeToBridgeStatus, store.getBridgeStatusSnapshot);
   const joinCode = useSyncExternalStore(store.subscribeToBridgeJoinCode, store.getBridgeJoinCodeSnapshot);
+  const bridgePaired = useSyncExternalStore(store.subscribeToBridgePaired, store.getBridgePairedSnapshot);
+  const bridgeErrorCode = useSyncExternalStore(store.subscribeToBridgeErrorCode, store.getBridgeErrorCodeSnapshot);
   const compileDiagnostics = useSyncExternalStore(
     store.subscribeToCompileDiagnostics,
     store.getCompileDiagnosticsSnapshot
   );
   const [bridgeEnabled, setBridgeEnabled] = useState(() => store.getUiPreferences().bridgeEnabled);
-  const [copied, setCopied] = useState(false);
   const headingId = useId();
   const { open: openDocs, navigateToEntry } = useDocsSidebar();
 
@@ -44,13 +49,6 @@ export function BridgePanel() {
       store.connectBridge();
     }
   }, [bridgeEnabled, store]);
-
-  const statusColor =
-    bridgeStatus === "connected"
-      ? "text-success"
-      : bridgeStatus === "connecting" || bridgeStatus === "reconnecting"
-        ? "text-warning"
-        : "text-muted-foreground";
 
   return (
     <section aria-labelledby={headingId} className="max-w-md">
@@ -76,35 +74,22 @@ export function BridgePanel() {
               setBridgeEnabled(checked);
               store.updateUiPreferences({ bridgeEnabled: checked });
               if (!checked) {
-                store.disconnectBridge();
+                store.endBridge();
                 clearBindingToken();
               }
             }}
             aria-label="Toggle VS Code bridge connection"
           />
         </div>
-        <output className={`block text-xs font-mono ${statusColor}`}>{bridgeStatus}</output>
-        {joinCode && (bridgeStatus === "connected" || bridgeStatus === "reconnecting") && (
-          <div className="flex items-center gap-1.5">
-            <span className="truncate font-mono text-xs text-foreground">{joinCode}</span>
-            <button
-              type="button"
-              className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
-              aria-label={copied ? "Copied to clipboard" : "Copy join code"}
-              onClick={() => {
-                void navigator.clipboard.writeText(joinCode);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              {copied ? (
-                <Check className="h-3.5 w-3.5" aria-hidden="true" />
-              ) : (
-                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-              )}
-            </button>
-          </div>
-        )}
+        <BridgeConnectionStatus
+          status={bridgeStatus}
+          paired={bridgePaired}
+          errorCode={bridgeErrorCode}
+          joinCode={joinCode}
+          onReconnect={() => {
+            store.connectBridge();
+          }}
+        />
         <button
           type="button"
           className="text-left text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
