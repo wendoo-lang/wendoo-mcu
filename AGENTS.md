@@ -14,37 +14,27 @@ For the working temperament and decision style to apply on ambiguous work
 
 ## Git Is Read-Only
 
-Git is a read-only tool for Codex, Copilot, Claude, and any other agent,
-including subagents spawned for a task. Use it freely to inspect and to query
-history: `status`, `log`, `diff`, `show`, `blame`, `reflog`, `rev-parse`,
-`for-each-ref`, `branch --list`, and the like. `git rm` and `git mv` are also
-allowed, as ordinary file operations while editing the repo.
-
-Everything that changes repository state -- the working tree, the index, the
-stash, or any commit, branch, tag, or ref -- is the user's to run. Do it only
-when the user asks for that specific write in that turn.
-
-Two commands read as harmless but are writes: `git checkout -- <file>` and
-`git restore <file>` discard uncommitted work. Treat them as writes.
-
-To undo or fix a file, edit or regenerate it directly, and leave changes you did
-not make as they stand.
+Git is a read-only tool for every agent, subagents included. Inspection and
+history queries are free, and `git rm` / `git mv` are allowed as ordinary file
+operations while editing. Everything that changes repository state -- the
+working tree, the index, the stash, any commit, branch, tag, or ref -- is the
+user's to run, and only when they ask for that specific write in that turn.
+`git checkout -- <file>` and `git restore <file>` read as harmless but discard
+uncommitted work: treat them as writes. To undo or fix a file, edit or
+regenerate it directly, and leave changes you did not make as they stand. The
+submodule at `external/wendoo-lang` is a second repository under the same
+rule: a pointer bump is a write to this repo, a commit inside it a write to
+that one.
 
 ## Never Kill Processes You Do Not Own
 
 Never kill, signal, or otherwise terminate a process you did not start in the
-current session. This is an absolute rule.
-
-- A port being in use is NOT evidence the listener is stale, orphaned, or yours.
-  A dev server matching this repo's app and working directory may well be the
-  user's own running server. Same app, same cwd, same port does NOT mean "safe
-  to kill."
-- Do not run `kill`, `pkill`, `killall`, `kill -9`, or any equivalent against a
-  process you cannot prove you launched this session.
-- If a port you want is occupied, pick a different port, or stop and ask the
-  user whether to free it -- do not free it yourself.
-- This applies to dev servers, watchers, language servers, databases, and any
-  other long-running process.
+current session -- no `kill`, `pkill`, `killall`, or equivalent. This is an
+absolute rule, and a port being in use is not evidence its listener is stale
+or yours: same app, same cwd, same port may well be the user's own server. If
+a port you want is occupied, pick another or ask the user; never free it
+yourself. This covers dev servers, watchers, language servers, databases, and
+every other long-running process.
 
 ## Command Approvals
 
@@ -58,13 +48,11 @@ current session. This is an absolute rule.
 - This repo uses npm exclusively; the only root lockfile is `package-lock.json`.
   Keep pnpm and yarn out entirely -- no alternate lockfiles, no `packageManager`
   field, no `pnpm`/`yarn` invocations.
-- This is intentionally NOT an npm workspaces monorepo, and must not become one.
-  The platform submodule is consumed by two independent repository roots, and a
-  workspace root cannot span them: two roots would each claim the same packages
-  while edits are mirrored into both working trees, which is a failure class the
-  current layout does not have. There is no root `workspaces` field. Each
-  package and app runs its own `npm install` into its own `node_modules`;
-  cross-package links use `file:` dependencies and symlinks.
+- This is intentionally NOT an npm workspaces monorepo, and must not become
+  one: the platform submodule is consumed by several independent repository
+  roots, and a workspace root cannot span them. No root `workspaces` field.
+  Each package and app runs its own `npm install`; cross-package links use
+  `file:` dependencies and symlinks.
 - Because there is no hoisting, every package must declare the dev tooling its
   own scripts invoke (for example `tsx`) in its own `devDependencies`, so the
   script resolves the binary from that package's `node_modules/.bin`. Do not
@@ -89,35 +77,91 @@ current session. This is an absolute rule.
 - Write type-only imports as a top-level `import type` statement in `.ts` and
   `.tsx` files; do not use inline `import()` type expressions.
 
-## Minimalism (No Over-Build)
+## Minimalism and the Arc (No Over-Build, No Erosion)
 
-Build the minimum that satisfies the task's acceptance criteria; speculative
-robustness is out of scope by default. Over-building -- adding machinery for
-problems that cannot occur in the system as it exists today -- is a recurring
-failure to actively guard against. The unifying tell: it defends against a state
-that cannot occur today, or duplicates a guarantee an existing layer already
-provides.
+Two forces govern scope, and both bind. Minimalism prunes what no
+planned work needs; the arc protects what planned work will need.
+Applying either without the other fails: unchecked building buries
+the system in speculative machinery, and minimizing at every turn
+erases architectural structure. The ledger and the slice plan are
+the arbiter between them.
 
-- Burden of proof is on inclusion, not omission. For every field, check, version,
-  error code, abstraction, parameter, or guard, name the one concrete failure
-  mode -- possible today -- that it prevents and that no existing layer already
-  catches. If the only justification is a future scenario, a general good
-  ("robustness", "safety", "completeness", "flexibility"), symmetry, or something
-  already guaranteed elsewhere, leave it out.
-- Scope = the test. Build only what an acceptance check exercises. If no test
-  touches a field, branch, check, or abstraction, do not build it.
-- Banned by default (each needs an explicit, today-failure-mode justification):
-  redundant integrity (checksums or length fields duplicating an existing
-  guarantee); compatibility/identity machinery (version numbers, content digests,
-  build/firmware ids, handshakes) in a single-build, single-version world;
-  future-proofing (reserved fields, "vN room", envelopes, abstraction for a
-  consumer that does not exist yet); defensive validation of inputs that cannot be
-  malformed; fixed- or cap-sized buffers and pools; error-code, state, or config
-  inflation beyond what a path can reach.
-- Subtraction before done. Before declaring a change complete, try to delete each
-  piece you added; if no test breaks, remove it.
-- When unsure, leave it out and let a real, failing test pull it in -- adding it
-  later is cheap; carrying speculative machinery is not.
+### Minimalism (No Over-Build)
+
+Build the minimum that satisfies the slice's acceptance criteria;
+speculative robustness is out of scope by default. Over-building --
+adding machinery for problems that cannot occur in the system as it
+exists today or in any planned slice -- is a recurring failure to
+actively guard against. The unifying tell: it defends against a
+state that cannot occur, or duplicates a guarantee an existing
+layer already provides.
+
+- Burden of proof is on inclusion, not omission -- and it applies
+  to machinery being BUILT, never to functionality being CARRIED.
+  Existing working capability that a refactor touches is preserved
+  by default; dropping it is not minimalism, it is a decision, and
+  the decision is the user's. A characterization pass that maps
+  what a refactor keeps and what it removes, with the authority for
+  each removal, is part of the refactor.
+- For every NEW field, check, error code, abstraction, parameter,
+  or guard, name the concrete failure mode it prevents that no
+  existing layer catches -- possible today, or scheduled to become
+  possible in a planned slice. If the only justification is an
+  unplanned future, a general good ("robustness", "flexibility"),
+  symmetry, or something already guaranteed elsewhere, leave it
+  out.
+- Scope = the acceptance check or the real customer. A piece
+  nothing exercises and no one uses does not get built. But two
+  cautions: untested-but-real surfaces (dev tooling, operational
+  consoles, docs affordances) have customers without tests --
+  count them; and a test is only an oracle while it is faithful --
+  a green suite over an unfaithful model licenses nothing.
+- Banned by default, WHERE THE QUALIFYING PREMISE HOLDS -- check
+  the premise before applying the ban, and check when it expires:
+  redundant integrity duplicating an existing guarantee;
+  compatibility/identity machinery in a genuinely single-build,
+  single-version world; future-proofing for consumers no plan
+  names; defensive validation of inputs that cannot be malformed;
+  fixed- or cap-sized buffers and pools; error-code, state, or
+  config inflation beyond what a path can reach.
+- Deadlines beat deferral. Some machinery must exist BEFORE its
+  failure mode becomes possible, because retrofitting it afterward
+  is a migration: wire contracts, credential semantics, version
+  carriers, public coordinates. For these, "add it when a failing
+  test pulls it in" is wrong; the question is the deadline (the
+  first pinned consumer, the first published artifact), and the
+  deadline is tracked like any other slot.
+- "Adding it later is cheap" holds only for reversible machinery.
+  State the reversibility before leaning on it.
+- A divergence from a reference app justified solely by minimalism
+  is a flagged decision, never a silent default -- the
+  follow-the-pattern rule does not lose to this section without a
+  recorded argument.
+- Subtraction before done. Before declaring a change complete, try
+  to delete each piece you added; if no check breaks and no tracked
+  slot claims it, remove it.
+
+### The Arc (No Erosion)
+
+This repository is built as a planned arc of slices toward one
+architecture. Judge each piece against the whole planned arc, not
+the current slice alone.
+
+- A partially finished bridge is legitimate. A seam, surface, or
+  mechanism may land incomplete and stay incomplete across several
+  slices -- PROVIDED the incompleteness is tracked, with a named
+  slot for its completion. Tracked incompleteness is construction;
+  untracked incompleteness is debt; and completing it "minimally"
+  by deleting the unfinished half is erosion, not cleanup.
+- Structure that exists to carry the arc is not speculative
+  machinery. "Speculative" means serving no planned slice, not
+  serving a later one. Before pruning a piece as over-build, check
+  the ledger and the plan: if a slotted slice claims it, it stands
+  (sized honestly for what that slice needs, and marked).
+- The empty-tree caution still applies in reverse: prefer one
+  concrete implementation over a framework for implementations
+  that do not exist -- but where the plan names the second
+  implementation, the seam for it is arc, not framework.
 
 For the C++ VM work specifically, the binding prohibitions are Locked Decisions 7
 (no pre-sized pools), 8 (no ABI compatibility machinery), and 9 (this principle,
