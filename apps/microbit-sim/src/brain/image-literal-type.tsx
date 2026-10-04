@@ -1,4 +1,4 @@
-import type { CustomLiteralType } from "@wendoo/ui";
+import type { DialogLiteralType } from "@wendoo/ui";
 import {
   imageDigitsFromValue,
   imageGridBytes,
@@ -219,7 +219,7 @@ function ImagePreview({ bytes }: { bytes: readonly number[] }) {
  * in the create-literal dialog, and a lit preview of the drawn pixels in placed
  * literal tiles.
  */
-export const imageLiteralType: CustomLiteralType = {
+export const imageLiteralType: DialogLiteralType = {
   typeId: WODAL_SHARED_TYPE_IDS.Image,
   description: "Draw an image for the display. Pick a brightness, then tap the pixels to light.",
   nameBase: "image",
