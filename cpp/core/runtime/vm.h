@@ -19,7 +19,7 @@ class ManagedHeap;
 class GcRoots;
 class TypeRegistry;
 class HandleTable;
-struct VmRng;
+struct RandomStream;
 struct AsyncActionSpawner;
 struct ChildRuleSpawner;
 
@@ -113,11 +113,11 @@ struct RuntimeSurface {
   GcRoots* roots = nullptr;
 
   /**
-   * VM-global pseudo-random stream backing `MathRandom`. Null when the program
+   * Random stream `MathRandom` draws from. Null when the program
    * makes no random host call; a `MathRandom` `HOST_CALL` then faults
    * `ErrorCode::HostError`.
    */
-  VmRng* rng = nullptr;
+  RandomStream* rng = nullptr;
 
   /**
    * Type registry resolving program-local struct field names, struct slot

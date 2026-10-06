@@ -184,8 +184,9 @@ ConformanceActionTable combineActionTable(
 
 /**
  * Replays `wire` over `schedule` and returns the rendered observable trace. The
- * run reads nothing outside the decoded program, the schedule, and a fresh
- * {@link ConformanceWorld}. Mirrors `runTrace` in
+ * run reads nothing outside the decoded program, the schedule, a fresh
+ * {@link ConformanceWorld}, and a fresh `ConformanceRandomStream` every random
+ * read draws from. Mirrors `runTrace` in
  * external/wendoo-lang/packages/conformance/src/mint.ts, including the one
  * ordering rule the profile adds: the settlements due at ordinal N run
  * immediately before the think of ordinal N.
@@ -205,7 +206,7 @@ std::string runTrace(const std::vector<uint8_t>& wire, const std::vector<float>&
   TraceTap tap(writer);
 
   wendoo::CoreHostActionEnv coreEnv;
-  wendoo::VmRng rng;
+  wendoo::test::ConformanceRandomStream rng;
   wendoo::ManagedHeap heap(arena, &image);
   wendoo::TypeRegistry types(image);
   const auto registeredStructs = wendoo::test::makeConformanceRegisteredStructSlotCounts();

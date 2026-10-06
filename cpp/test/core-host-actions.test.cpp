@@ -14,6 +14,7 @@
 #include <iterator>
 #include <vector>
 
+using wendoo::callCoreHostFunction;
 using wendoo::CoreFuncId;
 using wendoo::CoreHostActionEnv;
 using wendoo::ExecutionContext;
@@ -21,10 +22,12 @@ using wendoo::findHostActionById;
 using wendoo::GcMarker;
 using wendoo::GcRoots;
 using wendoo::HostActionBinding;
+using wendoo::HostCallEnv;
 using wendoo::kCoreHostActions;
 using wendoo::makeCoreHostActionBindings;
 using wendoo::ManagedHeap;
 using wendoo::mc_number_t;
+using wendoo::RandomStream;
 using wendoo::RegionArena;
 using wendoo::Span;
 using wendoo::TARGET_ACTION_ID_BASE;
@@ -156,4 +159,44 @@ TEST_CASE("the random sensor yields the surface rng stream") {
     REQUIRE(result.isNumber());
     CHECK(result.asNumber() == reference.next());
   }
+}
+
+namespace {
+
+/** A host-injected random stream yielding a fixed sequence of draws, in order. */
+struct ScriptedRandomStream final : RandomStream {
+  static constexpr mc_number_t kDraws[] = {0.5f, 0.25f, 0.75f};
+
+  mc_number_t next() override { return kDraws[drawn++]; }
+
+  size_t drawn = 0;
+};
+
+} // namespace
+
+TEST_CASE("the random sensor and MathRandom draw in turn from one injected stream") {
+  ScriptedRandomStream stream;
+  CoreHostActionEnv env;
+  env.rng = &stream;
+  auto bindings = makeCoreHostActionBindings(env);
+  const HostActionBinding* random =
+      findHostActionById({bindings.data(), bindings.size()}, CoreHostActions::Random.actionId);
+  REQUIRE(random != nullptr);
+  HostCallEnv callEnv;
+  callEnv.rng = &stream;
+  ExecutionContext ctx;
+
+  const Value first = random->execSync(random->hostData, ctx, Span<const Value>{});
+  Value second;
+  REQUIRE(
+      callCoreHostFunction(CoreFuncId::MathRandom, Span<const Value>{}, callEnv, second).isOk());
+  const Value third = random->execSync(random->hostData, ctx, Span<const Value>{});
+
+  REQUIRE(first.isNumber());
+  REQUIRE(second.isNumber());
+  REQUIRE(third.isNumber());
+  CHECK(first.asNumber() == 0.5f);
+  CHECK(second.asNumber() == 0.25f);
+  CHECK(third.asNumber() == 0.75f);
+  CHECK(stream.drawn == 3);
 }

@@ -7,7 +7,7 @@ class GcRoots;
 class ManagedHeap;
 struct ProgramImage;
 struct RuleSubtreeLiveness;
-struct VmRng;
+struct RandomStream;
 
 /**
  * Ambient capabilities the core sensor/actuator bodies reach for. Every core
@@ -22,8 +22,8 @@ struct VmRng;
 struct CoreHostActionEnv {
   /** Brain runtime the page-control sensors and actuators drive. */
   BrainRuntime* brain = nullptr;
-  /** VM-global pseudo-random stream backing the random sensor. */
-  VmRng* rng = nullptr;
+  /** Random stream the random sensor draws from. */
+  RandomStream* rng = nullptr;
   /** Managed heap backing the timeout sensor's per-callsite state list. */
   ManagedHeap* heap = nullptr;
   /** Collection root source for the timeout sensor's state allocation. */

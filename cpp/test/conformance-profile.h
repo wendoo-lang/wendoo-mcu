@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "core/platform/span.h"
@@ -13,6 +14,7 @@
 #include "core/runtime/host-action.h"
 #include "core/runtime/host-function.h"
 #include "core/runtime/managed-heap.h"
+#include "core/runtime/random-stream.h"
 #include "core/runtime/result.h"
 #include "core/runtime/type-registry.h"
 #include "core/runtime/value.h"
@@ -66,6 +68,8 @@ inline constexpr HostActionIds DeferTarget{TARGET_ACTION_ID_BASE + 13, TARGET_FU
 inline constexpr HostActionIds EmitAll{TARGET_ACTION_ID_BASE + 14, TARGET_FUNC_ID_BASE + 15};
 /** Synchronous actuator returning void, destroying the world's one anchor host object. */
 inline constexpr HostActionIds DestroyAnchor{TARGET_ACTION_ID_BASE + 15, TARGET_FUNC_ID_BASE + 16};
+/** Synchronous inline sensor returning the number not-a-number. */
+inline constexpr HostActionIds NotANumber{TARGET_ACTION_ID_BASE + 16, TARGET_FUNC_ID_BASE + 18};
 } // namespace ConformanceHostActions
 
 /**
@@ -153,6 +157,33 @@ inline constexpr mc_number_t kConformanceTargetFirstValue = 1.5;
  */
 inline constexpr mc_number_t kConformanceTargetLaterValue = 8.5;
 
+/**
+ * The numbers a replay's random stream yields, in order, starting over from
+ * the first once the last has been drawn. Every draw lies in `[0, 1)` and is
+ * exactly representable at f32. Mirrors `CONFORMANCE_RANDOM_DRAWS` in
+ * external/wendoo-lang/packages/conformance/src/profile.ts.
+ */
+inline constexpr std::array<mc_number_t, 5> kConformanceRandomDraws{0.25f, 0.875f, 0.0f, 0.5f,
+                                                                    0.0625f};
+
+/**
+ * The random stream every random read of a replay draws from: the
+ * {@link kConformanceRandomDraws} in order, cycling. A fresh instance starts at
+ * the first draw. Mirrors `ConformanceRandomStream` in
+ * external/wendoo-lang/packages/conformance/src/profile.ts.
+ */
+struct ConformanceRandomStream final : RandomStream {
+  /** Returns the next declared draw and advances the stream, wrapping after the last. */
+  mc_number_t next() override {
+    const mc_number_t draw = kConformanceRandomDraws[nextIndex];
+    nextIndex = (nextIndex + 1) % kConformanceRandomDraws.size();
+    return draw;
+  }
+
+private:
+  size_t nextIndex = 0;
+};
+
 /** Host token of the world's one anchor object, carried as an `Anchor` value's handle. */
 inline constexpr uint32_t kConformanceAnchorToken = 0;
 
@@ -193,7 +224,7 @@ struct ConformanceNativeEnv {
 inline ConformanceNativeEnv* gConformanceNativeEnv = nullptr;
 
 /** Number of conformance host-action bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostActionBindingCount = 16;
+inline constexpr uint32_t kConformanceHostActionBindingCount = 17;
 
 /** Number of conformance host-function bindings the profile registers. */
 inline constexpr uint32_t kConformanceHostFuncBindingCount = 2;
@@ -619,6 +650,11 @@ inline Value execDestroyAnchor(void*, ExecutionContext&, Span<const Value>) {
   return kVoidValue;
 }
 
+/** Returns the number not-a-number. */
+inline Value execNotANumber(void*, ExecutionContext&, Span<const Value>) {
+  return Value::number(std::numeric_limits<mc_number_t>::quiet_NaN());
+}
+
 /**
  * Reads the number in field `fieldId` of a managed `Point` operand into `out`.
  * Returns false when the env is incomplete or the operand carries no such
@@ -697,7 +733,7 @@ inline Value execCounter(void*, ExecutionContext& ctx, Span<const Value>) {
  * Builds the conformance host-action binding table over `world`, one entry per
  * profile action in registry order: echo, emit, defer echo, defer fail, fault,
  * signal, counter, defer cancel, defer read, emit text, emit flag, defer
- * point, defer anchor, defer target, emit all, destroy anchor. `world` and
+ * point, defer anchor, defer target, emit all, destroy anchor, not a number. `world` and
  * `pointEnv` must outlive every dispatch through the table, and the caller
  * fills `pointEnv`'s fields before the first `defer point` settlement is due.
  *
@@ -734,6 +770,8 @@ makeConformanceHostActionBindings(ConformanceWorld& world, ConformancePointEnv& 
       {ConformanceHostActions::EmitAll.actionId, &conformance_detail::execEmit, nullptr, &world},
       {ConformanceHostActions::DestroyAnchor.actionId, &conformance_detail::execDestroyAnchor,
        nullptr, &world},
+      {ConformanceHostActions::NotANumber.actionId, &conformance_detail::execNotANumber, nullptr,
+       &world},
   }};
 }
 
