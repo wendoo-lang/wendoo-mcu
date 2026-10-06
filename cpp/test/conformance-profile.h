@@ -18,6 +18,7 @@
 #include "core/runtime/result.h"
 #include "core/runtime/type-registry.h"
 #include "core/runtime/value.h"
+#include "core/runtime/vm.h"
 
 namespace wendoo::test {
 
@@ -70,6 +71,8 @@ inline constexpr HostActionIds EmitAll{TARGET_ACTION_ID_BASE + 14, TARGET_FUNC_I
 inline constexpr HostActionIds DestroyAnchor{TARGET_ACTION_ID_BASE + 15, TARGET_FUNC_ID_BASE + 16};
 /** Synchronous inline sensor returning the number not-a-number. */
 inline constexpr HostActionIds NotANumber{TARGET_ACTION_ID_BASE + 16, TARGET_FUNC_ID_BASE + 18};
+/** Synchronous sensor returning `true` after writing a fresh `Point` to each of its two outputs. */
+inline constexpr HostActionIds PointOutputs{TARGET_ACTION_ID_BASE + 17, TARGET_FUNC_ID_BASE + 19};
 } // namespace ConformanceHostActions
 
 /**
@@ -223,8 +226,48 @@ struct ConformanceNativeEnv {
  */
 inline ConformanceNativeEnv* gConformanceNativeEnv = nullptr;
 
+/**
+ * Rule-variable key of the `open` `Point` output of `point outputs`: the
+ * output identity (`Point` type, name `open`) as the compiled output tile
+ * reads it. Mirrors `mkOutputVarKey(CONFORMANCE_POINT_TYPE_ID,
+ * ConformancePointOutputName.Open)` in
+ * external/wendoo-lang/packages/conformance/src/profile.ts.
+ */
+inline constexpr char kConformancePointOpenOutputKey[] = "__out.struct:<Point>.open";
+
+/**
+ * Rule-variable key of the `sealed` `Point` output of `point outputs`.
+ * Mirrors `mkOutputVarKey(CONFORMANCE_POINT_TYPE_ID,
+ * ConformancePointOutputName.Sealed)`.
+ */
+inline constexpr char kConformancePointSealedOutputKey[] = "__out.struct:<Point>.sealed";
+
+/**
+ * `x` of the `Point` `point outputs` writes to `open`. Mirrors
+ * `CONFORMANCE_POINT_OUTPUTS_READING.open.x`.
+ */
+inline constexpr mc_number_t kConformancePointOpenX = 5.5;
+
+/**
+ * `y` of the `Point` `point outputs` writes to `open`. Mirrors
+ * `CONFORMANCE_POINT_OUTPUTS_READING.open.y`.
+ */
+inline constexpr mc_number_t kConformancePointOpenY = -1.5;
+
+/**
+ * `x` of the `Point` `point outputs` writes to `sealed`. Mirrors
+ * `CONFORMANCE_POINT_OUTPUTS_READING.sealed.x`.
+ */
+inline constexpr mc_number_t kConformancePointSealedX = 6.25;
+
+/**
+ * `y` of the `Point` `point outputs` writes to `sealed`. Mirrors
+ * `CONFORMANCE_POINT_OUTPUTS_READING.sealed.y`.
+ */
+inline constexpr mc_number_t kConformancePointSealedY = 0.75;
+
 /** Number of conformance host-action bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostActionBindingCount = 17;
+inline constexpr uint32_t kConformanceHostActionBindingCount = 18;
 
 /** Number of conformance host-function bindings the profile registers. */
 inline constexpr uint32_t kConformanceHostFuncBindingCount = 2;
@@ -656,6 +699,39 @@ inline Value execNotANumber(void*, ExecutionContext&, Span<const Value>) {
 }
 
 /**
+ * Writes a fresh `Point` carrying `x` and `y` to the output whose rule-variable
+ * key is the `keyLength`-byte `key`, on the rule bound to the dispatch. A
+ * failed allocation drops the write.
+ */
+inline void writePointOutput(const ConformancePointEnv& env, ExecutionContext& ctx, const char* key,
+                             uint32_t keyLength, mc_number_t x, mc_number_t y) {
+  const Value point = buildConformancePointAt(env, x, y);
+  if (point.isNil()) {
+    return;
+  }
+  ManagedHeap::Pin pinPoint(*env.heap, point);
+  Value name;
+  if (!env.heap->newString(key, keyLength, env.roots, name)) {
+    return;
+  }
+  setRuleVariable(ctx, *env.heap, env.roots, name, point);
+}
+
+/** Writes a fresh `Point` to each of the two outputs of `point outputs`, then returns true. */
+inline Value execPointOutputs(void* hostData, ExecutionContext& ctx, Span<const Value>) {
+  ConformancePointEnv* env = static_cast<ConformancePointEnv*>(hostData);
+  if (env != nullptr && env->heap != nullptr) {
+    writePointOutput(*env, ctx, kConformancePointOpenOutputKey,
+                     sizeof(kConformancePointOpenOutputKey) - 1, kConformancePointOpenX,
+                     kConformancePointOpenY);
+    writePointOutput(*env, ctx, kConformancePointSealedOutputKey,
+                     sizeof(kConformancePointSealedOutputKey) - 1, kConformancePointSealedX,
+                     kConformancePointSealedY);
+  }
+  return kTrueValue;
+}
+
+/**
  * Reads the number in field `fieldId` of a managed `Point` operand into `out`.
  * Returns false when the env is incomplete or the operand carries no such
  * number.
@@ -733,12 +809,14 @@ inline Value execCounter(void*, ExecutionContext& ctx, Span<const Value>) {
  * Builds the conformance host-action binding table over `world`, one entry per
  * profile action in registry order: echo, emit, defer echo, defer fail, fault,
  * signal, counter, defer cancel, defer read, emit text, emit flag, defer
- * point, defer anchor, defer target, emit all, destroy anchor, not a number. `world` and
- * `pointEnv` must outlive every dispatch through the table, and the caller
- * fills `pointEnv`'s fields before the first `defer point` settlement is due.
+ * point, defer anchor, defer target, emit all, destroy anchor, not a number, point
+ * outputs. `world` and `pointEnv` must outlive every dispatch through the
+ * table, and the caller fills `pointEnv`'s fields before the first `defer
+ * point` settlement is due and the first `point outputs` dispatch.
  *
  * @param world - Deterministic world the deferred actions park their handles in.
- * @param pointEnv - Construction env the `defer point` binding settles through.
+ * @param pointEnv - Construction env the `defer point` binding settles through and
+ *   the `point outputs` binding builds and writes its outputs through.
  */
 inline std::array<HostActionBinding, kConformanceHostActionBindingCount>
 makeConformanceHostActionBindings(ConformanceWorld& world, ConformancePointEnv& pointEnv) {
@@ -772,6 +850,8 @@ makeConformanceHostActionBindings(ConformanceWorld& world, ConformancePointEnv& 
        nullptr, &world},
       {ConformanceHostActions::NotANumber.actionId, &conformance_detail::execNotANumber, nullptr,
        &world},
+      {ConformanceHostActions::PointOutputs.actionId, &conformance_detail::execPointOutputs,
+       nullptr, &pointEnv},
   }};
 }
 
