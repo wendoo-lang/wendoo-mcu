@@ -96,6 +96,22 @@ inline constexpr uint32_t PointAdd = TARGET_FUNC_ID_BASE + 17;
 } // namespace ConformanceOperators
 
 /**
+ * Stable funcIds of the overloads the conformance profile adds to core
+ * operators, continuing the target partition offsets
+ * {@link ConformanceHostActions} and {@link ConformanceOperators} allocate
+ * from. Mirrors `ConformanceOperatorOverloads` in
+ * external/wendoo-lang/packages/conformance/src/profile.ts; the ids are
+ * wire-stable, so never renumber or reuse one.
+ */
+namespace ConformanceOperatorOverloads {
+/**
+ * Synchronous `eq` over two `Point` operands, an overload of the core equality
+ * operator: true exactly when both carry `Point` readings with equal fields.
+ */
+inline constexpr uint32_t PointEqual = TARGET_FUNC_ID_BASE + 20;
+} // namespace ConformanceOperatorOverloads
+
+/**
  * Stable type-atom id of the conformance `Point` struct type. Mirrors
  * `ConformanceTypeAtomIds.Point` in
  * external/wendoo-lang/packages/conformance/src/profile.ts; wire-stable, so
@@ -270,7 +286,7 @@ inline constexpr mc_number_t kConformancePointSealedY = 0.75;
 inline constexpr uint32_t kConformanceHostActionBindingCount = 18;
 
 /** Number of conformance host-function bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostFuncBindingCount = 2;
+inline constexpr uint32_t kConformanceHostFuncBindingCount = 3;
 
 /**
  * Arg-buffer slot of the value argument of `echo`, `emit`, `defer echo`,
@@ -773,6 +789,32 @@ inline Status execPointAdd(void* hostData, Span<const Value> args, Value& result
   return Status::ok();
 }
 
+/**
+ * `eq` over two `Point` operands: true exactly when both carry `Point` readings
+ * whose `x` fields are equal numbers and whose `y` fields are equal numbers;
+ * false when either carries none, nil included.
+ */
+inline Status execPointEqual(void* hostData, Span<const Value> args, Value& result) {
+  ConformancePointEnv* env = static_cast<ConformancePointEnv*>(hostData);
+  result = kFalseValue;
+  if (env == nullptr) {
+    return Status::ok();
+  }
+  const Value lhs = valueArg(args, kOperatorLhsSlot);
+  const Value rhs = valueArg(args, kOperatorRhsSlot);
+  mc_number_t lhsX = 0;
+  mc_number_t lhsY = 0;
+  mc_number_t rhsX = 0;
+  mc_number_t rhsY = 0;
+  if (pointFieldNumber(*env, lhs, kConformancePointFieldX, lhsX) &&
+      pointFieldNumber(*env, lhs, kConformancePointFieldY, lhsY) &&
+      pointFieldNumber(*env, rhs, kConformancePointFieldX, rhsX) &&
+      pointFieldNumber(*env, rhs, kConformancePointFieldY, rhsY)) {
+    result = Value::boolean(lhsX == rhsX && lhsY == rhsY);
+  }
+  return Status::ok();
+}
+
 inline Value execEmitText(void*, ExecutionContext&, Span<const Value> args) {
   return valueArg(args, kConformanceValueSlot);
 }
@@ -895,18 +937,21 @@ makeConformanceRegisteredStructSlotCounts() {
 
 /**
  * Builds the conformance host-function binding table, one entry per profile
- * operator overload: `defer plus` and `point plus`. `world` and `pointEnv`
- * must outlive every dispatch through the table, and the caller fills
- * `pointEnv`'s fields before the first `point plus` dispatch.
+ * operator overload: `defer plus`, `point plus`, and the `Point` overload of
+ * the core `eq`. `world` and `pointEnv` must outlive every dispatch through
+ * the table, and the caller fills `pointEnv`'s fields before the first `point
+ * plus` or `eq` dispatch.
  *
  * @param world - Deterministic world the deferred overloads park their handles in.
- * @param pointEnv - Heap, type registry, and roots `point plus` builds its result through.
+ * @param pointEnv - Heap, type registry, and roots `point plus` builds its result through and
+ *   `eq` reads its operands through.
  */
 inline std::array<TargetHostFuncBinding, kConformanceHostFuncBindingCount>
 makeConformanceHostFuncBindings(ConformanceWorld& world, ConformancePointEnv& pointEnv) {
   return {{
       {ConformanceOperators::DeferAdd, nullptr, &world, &conformance_detail::execDeferAdd},
       {ConformanceOperators::PointAdd, &conformance_detail::execPointAdd, &pointEnv},
+      {ConformanceOperatorOverloads::PointEqual, &conformance_detail::execPointEqual, &pointEnv},
   }};
 }
 
