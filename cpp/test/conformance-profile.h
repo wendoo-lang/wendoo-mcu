@@ -73,6 +73,8 @@ inline constexpr HostActionIds DestroyAnchor{TARGET_ACTION_ID_BASE + 15, TARGET_
 inline constexpr HostActionIds NotANumber{TARGET_ACTION_ID_BASE + 16, TARGET_FUNC_ID_BASE + 18};
 /** Synchronous sensor returning `true` after writing a fresh `Point` to each of its two outputs. */
 inline constexpr HostActionIds PointOutputs{TARGET_ACTION_ID_BASE + 17, TARGET_FUNC_ID_BASE + 19};
+/** Synchronous inline sensor returning a `Marker` native struct value over the world's anchor. */
+inline constexpr HostActionIds Marker{TARGET_ACTION_ID_BASE + 18, TARGET_FUNC_ID_BASE + 21};
 } // namespace ConformanceHostActions
 
 /**
@@ -154,6 +156,15 @@ inline constexpr uint32_t kConformanceAnchorAtomId = TARGET_TYPE_ATOM_BASE + 1;
  */
 inline constexpr uint32_t kConformanceTargetAtomId = TARGET_TYPE_ATOM_BASE + 2;
 
+/**
+ * Stable type-atom id of the conformance `Marker` native struct type, the
+ * profile's one type declaring an existence hook. Mirrors
+ * `ConformanceTypeAtomIds.Marker`; wire-stable, so never renumber or reuse it.
+ * Carried as the `Value::typeId` of the type's values, like
+ * {@link kConformanceAnchorAtomId}.
+ */
+inline constexpr uint32_t kConformanceMarkerAtomId = TARGET_TYPE_ATOM_BASE + 3;
+
 /** Field id of the `Anchor` type's `x` field. Mirrors `ConformanceAnchorField.X`. */
 inline constexpr uint32_t kConformanceAnchorFieldX = 0;
 
@@ -162,6 +173,9 @@ inline constexpr uint32_t kConformanceAnchorFieldY = 1;
 
 /** Field id of the `Target` type's `value` field. Mirrors `ConformanceTargetField.Value`. */
 inline constexpr uint32_t kConformanceTargetFieldValue = 0;
+
+/** Field id of the `Marker` type's `x` field. Mirrors `ConformanceMarkerField.X`. */
+inline constexpr uint32_t kConformanceMarkerFieldX = 0;
 
 /** Starting `x` of the world's anchor host object. Mirrors `CONFORMANCE_ANCHOR_READING.x`. */
 inline constexpr mc_number_t kConformanceAnchorX = 1.5;
@@ -217,8 +231,9 @@ inline constexpr uint32_t kConformanceTargetFirstToken = 1;
 inline constexpr uint32_t kConformanceTargetLaterToken = 2;
 
 /**
- * Mutable host state behind the profile's two native struct types: the anchor
- * object's fields and the target resolution counter. The corpus harness
+ * Mutable host state behind the profile's native struct types: the anchor
+ * object's fields and liveness, which `Anchor` and `Marker` values share, and
+ * the target resolution counter. The corpus harness
  * installs a fresh instance per replay through
  * {@link gConformanceNativeEnv}, so two runs of one program observe the same
  * state.
@@ -228,7 +243,8 @@ struct ConformanceNativeEnv {
   mc_number_t anchorX = kConformanceAnchorX;
   /** `y` field of the world's one anchor host object. */
   mc_number_t anchorY = kConformanceAnchorY;
-  /** True once `destroy anchor` has run; a destroyed anchor designates nothing. */
+  /** True once `destroy anchor` has run; a destroyed anchor designates nothing, and every `Marker`
+   * value reads as gone. */
   bool anchorDestroyed = false;
   /** How many target resolutions have run; the first returns the first object. */
   uint32_t targetResolutions = 0;
@@ -283,7 +299,7 @@ inline constexpr mc_number_t kConformancePointSealedX = 6.25;
 inline constexpr mc_number_t kConformancePointSealedY = 0.75;
 
 /** Number of conformance host-action bindings the profile registers. */
-inline constexpr uint32_t kConformanceHostActionBindingCount = 18;
+inline constexpr uint32_t kConformanceHostActionBindingCount = 19;
 
 /** Number of conformance host-function bindings the profile registers. */
 inline constexpr uint32_t kConformanceHostFuncBindingCount = 3;
@@ -699,6 +715,27 @@ inline Status execDeferTarget(void* hostData, ExecutionContext& ctx, Span<const 
   return Status::ok();
 }
 
+/**
+ * Reads a `Marker` field off the world's anchor host object whether or not it
+ * was destroyed, so only the type's existence hook reports the destruction;
+ * nil without a replay env or a declared field.
+ */
+inline Value markerFieldGetter(const Value& /*source*/, uint32_t fieldId) {
+  const ConformanceNativeEnv* env = gConformanceNativeEnv;
+  if (env == nullptr || fieldId != kConformanceMarkerFieldX) {
+    return kNilValue;
+  }
+  return Value::number(env->anchorX);
+}
+
+/** Existence hook of the `Marker` type: whether the world's anchor host object is live. */
+inline bool markerExists(const Value& /*source*/) { return resolveAnchorEnv() != nullptr; }
+
+/** Returns a fresh `Marker` value over the world's one anchor host object. */
+inline Value execMarker(void*, ExecutionContext&, Span<const Value>) {
+  return Value::structValue(kConformanceMarkerAtomId, kConformanceAnchorToken);
+}
+
 /** Destroys the world's one anchor host object, so every later field hook of the type resolves
  * nothing. */
 inline Value execDestroyAnchor(void*, ExecutionContext&, Span<const Value>) {
@@ -852,7 +889,7 @@ inline Value execCounter(void*, ExecutionContext& ctx, Span<const Value>) {
  * profile action in registry order: echo, emit, defer echo, defer fail, fault,
  * signal, counter, defer cancel, defer read, emit text, emit flag, defer
  * point, defer anchor, defer target, emit all, destroy anchor, not a number, point
- * outputs. `world` and `pointEnv` must outlive every dispatch through the
+ * outputs, marker. `world` and `pointEnv` must outlive every dispatch through the
  * table, and the caller fills `pointEnv`'s fields before the first `defer
  * point` settlement is due and the first `point outputs` dispatch.
  *
@@ -894,18 +931,20 @@ makeConformanceHostActionBindings(ConformanceWorld& world, ConformancePointEnv& 
        &world},
       {ConformanceHostActions::PointOutputs.actionId, &conformance_detail::execPointOutputs,
        nullptr, &pointEnv},
+      {ConformanceHostActions::Marker.actionId, &conformance_detail::execMarker, nullptr, &world},
   }};
 }
 
-/** Number of conformance native-struct field-accessor bindings. */
-inline constexpr uint32_t kConformanceNativeStructBindingCount = 2;
+/** Number of conformance native-struct bindings. */
+inline constexpr uint32_t kConformanceNativeStructBindingCount = 3;
 
 /**
  * Builds the conformance native-struct binding table: the `Anchor` type's
- * field getter and setter, and the `Target` type's field getter and deep-copy
- * snapshot. The bindings key on the stable type-atom ids the profile's native
- * values carry as their typeId. The returned array must outlive any registry
- * it is installed into, and the hooks read the replay's
+ * field getter and setter, the `Target` type's field getter and deep-copy
+ * snapshot, and the `Marker` type's field getter and existence hook. The
+ * bindings key on the stable type-atom ids the profile's native values carry
+ * as their typeId. The returned array must outlive any registry it is
+ * installed into, and the hooks read the replay's
  * {@link gConformanceNativeEnv}.
  */
 inline std::array<NativeStructTypeBinding, kConformanceNativeStructBindingCount>
@@ -915,6 +954,8 @@ makeConformanceNativeStructBindings() {
        &conformance_detail::anchorFieldSetter, nullptr},
       {kConformanceTargetAtomId, &conformance_detail::targetFieldGetter, nullptr,
        &conformance_detail::targetSnapshot},
+      {kConformanceMarkerAtomId, &conformance_detail::markerFieldGetter, nullptr, nullptr,
+       &conformance_detail::markerExists},
   }};
 }
 

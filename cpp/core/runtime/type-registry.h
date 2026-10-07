@@ -27,9 +27,19 @@ using NativeStructFieldSetter = bool (*)(const Value& source, uint32_t fieldId, 
 using NativeStructSnapshot = Value (*)(const Value& source);
 
 /**
- * One native struct type's field accessors, keyed by the typeId a native struct
- * value of that type carries. The `getter` maps a source value and field id to
- * the field value; the `setter` writes a field and reports accept/reject.
+ * Reports whether the host object behind a native struct value still exists.
+ * Every truthiness test of a value of the type calls it, and a value it reports
+ * gone is falsy. It must not change host state, and its answer may differ
+ * between calls. Mirrors `exists` in
+ * external/wendoo-lang/packages/core/src/runtime/type-defs.ts.
+ */
+using NativeStructExists = bool (*)(const Value& source);
+
+/**
+ * One native struct type's hooks, keyed by the typeId a native struct value of
+ * that type carries. The `getter` maps a source value and field id to the field
+ * value; the `setter` writes a field and reports accept/reject; the `exists`
+ * hook reports whether the value's host object still exists.
  */
 struct NativeStructTypeBinding {
   /** TypeId a native struct value of this type carries (its `Value::typeId`). */
@@ -43,6 +53,9 @@ struct NativeStructTypeBinding {
 
   /** Deep-copy handle snapshot, or null when the handle copies by reference. */
   NativeStructSnapshot snapshot = nullptr;
+
+  /** Existence hook, or null when every value of the type is truthy. */
+  NativeStructExists exists = nullptr;
 };
 
 /**
@@ -61,8 +74,8 @@ struct RegisteredStructSlotCount {
 /**
  * Resolves type identities against the decoded program image: program-local
  * struct field names and slot counts, the instantiated container types the core
- * builtins produce, and the optional native field getter/setter of a struct
- * type. Mirrors the role of `runtime.types` in
+ * builtins produce, and the optional native field getter/setter and existence
+ * hook of a struct type. Mirrors the role of `runtime.types` in
  * external/wendoo-lang/packages/core/src/runtime/vm.ts on the device.
  *
  * A program-local struct has no native getter/setter; its fields are managed
@@ -219,6 +232,13 @@ public:
   NativeStructSnapshot nativeStructSnapshot(uint32_t typeId) const {
     const NativeStructTypeBinding* binding = findNativeStruct(typeId);
     return binding != nullptr ? binding->snapshot : nullptr;
+  }
+
+  /** The existence hook for a struct value carrying `typeId`, or null when every value of its type
+   * is truthy. */
+  NativeStructExists nativeStructExists(uint32_t typeId) const {
+    const NativeStructTypeBinding* binding = findNativeStruct(typeId);
+    return binding != nullptr ? binding->exists : nullptr;
   }
 
 private:

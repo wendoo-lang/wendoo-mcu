@@ -370,6 +370,50 @@ TEST_CASE("conditional jumps branch on the contract truthiness table") {
   }
 }
 
+namespace {
+
+/** Whether the host object behind every value of the hooked test type still exists. */
+bool gHookedObjectExists = true;
+
+/** Field getter shared by the hooked and hookless test types: every field reads 7. */
+Value sevenTypeGetter(const Value& /*source*/, uint32_t /*fieldId*/) { return Value::number(7.0f); }
+
+/** Existence hook of the hooked test type: reports {@link gHookedObjectExists}. */
+bool hookedTypeExists(const Value& /*source*/) { return gHookedObjectExists; }
+
+/** TypeId the hooked native struct binding is keyed by. */
+constexpr uint32_t kHookedTypeId = wendoo::TARGET_TYPE_ATOM_BASE;
+
+/** TypeId the hookless native struct binding is keyed by. */
+constexpr uint32_t kHooklessTypeId = wendoo::TARGET_TYPE_ATOM_BASE + 1;
+
+const std::array<wendoo::NativeStructTypeBinding, 2> kExistenceBindings = {
+    wendoo::NativeStructTypeBinding{kHookedTypeId, &sevenTypeGetter, nullptr, nullptr,
+                                    &hookedTypeExists},
+    wendoo::NativeStructTypeBinding{kHooklessTypeId, &sevenTypeGetter, nullptr, nullptr},
+};
+
+} // namespace
+
+TEST_CASE("a struct whose type's existence hook reports it gone is falsy, consulted afresh") {
+  ProgramBuilder b;
+  std::vector<uint8_t> storage(4 * 1024);
+  const ProgramImage image = b.build(storage);
+  wendoo::TypeRegistry types(image);
+  types.setNativeStructBindings({kExistenceBindings.data(), kExistenceBindings.size()});
+  const Value hooked = Value::structValue(kHookedTypeId, 0);
+  const Value hookless = Value::structValue(kHooklessTypeId, 0);
+
+  gHookedObjectExists = true;
+  CHECK(isTruthy(hooked, image, nullptr, &types));
+  gHookedObjectExists = false;
+  CHECK_FALSE(isTruthy(hooked, image, nullptr, &types));
+  // A type with no hook keeps every value truthy, whatever its host object.
+  CHECK(isTruthy(hookless, image, nullptr, &types));
+  gHookedObjectExists = true;
+  CHECK(isTruthy(hooked, image, nullptr, &types));
+}
+
 TEST_CASE("JMP_IF_TRUE is the symmetric truthy branch") {
   ProgramBuilder b;
   b.valueBool(true).valueBool(false);

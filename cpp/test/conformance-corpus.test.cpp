@@ -64,11 +64,11 @@ constexpr const char* kProfilePrecision = "f32";
 constexpr DeviceProfileCaps kConformanceCaps{1000, 10000, 100, 256, 256, 64, 16, 8};
 
 /**
- * Type-atom ranges the conformance profile registers: three target type atoms
- * (the `Point`, `Anchor`, and `Target` structs) and no shared type atoms, so
- * a corpus binary referencing any other atom fails to decode.
+ * Type-atom ranges the conformance profile registers: four target type atoms
+ * (the `Point`, `Anchor`, `Target`, and `Marker` structs) and no shared type
+ * atoms, so a corpus binary referencing any other atom fails to decode.
  */
-constexpr ProgramReaderOptions kConformanceReaderOptions{3, 0};
+constexpr ProgramReaderOptions kConformanceReaderOptions{4, 0};
 
 /** One corpus case as the manifest declares it. */
 struct CorpusCase {

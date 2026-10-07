@@ -159,12 +159,15 @@ struct RuntimeSurface {
 
 /**
  * Truthiness of `value` per the VM contract: unknown, void, nil, `false`,
- * numeric zero, the empty string, empty containers, and error values are
- * falsy; everything else (including NaN numbers) is truthy. `program`
- * resolves borrowed string references; `heap` resolves container lengths and
- * must be non-null whenever a `List` or `Map` value can reach this call.
+ * numeric zero, the empty string, empty containers, error values, and a struct
+ * whose native type's existence hook reports it gone are falsy; everything else
+ * (including NaN numbers) is truthy. `program` resolves borrowed string
+ * references; `heap` resolves container lengths and must be non-null whenever a
+ * `List` or `Map` value can reach this call; `types` resolves a struct's
+ * existence hook, and a null `types` consults none.
  */
-bool isTruthy(const Value& value, const ProgramImage& program, const ManagedHeap* heap = nullptr);
+bool isTruthy(const Value& value, const ProgramImage& program, const ManagedHeap* heap = nullptr,
+              const TypeRegistry* types = nullptr);
 
 /**
  * Writes rule variable `name` on the rule bound to the in-flight host dispatch

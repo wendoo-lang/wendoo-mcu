@@ -595,7 +595,8 @@ bool execWhenGate(ExecutionState& state, const ProgramImage& program, const Runt
   ruleVarSet(surface.context, surface.heap, surface.roots, ruleFuncId,
              Value::number(kWhenResultRuleVarKey), value);
   state.stackDepth--;
-  const bool fired = presenceGated ? !value.isNil() : isTruthy(value, program, surface.heap);
+  const bool fired =
+      presenceGated ? !value.isNil() : isTruthy(value, program, surface.heap, surface.types);
   if (surface.context != nullptr) {
     const RuleFiringState record =
         chained ? chainedFiringState(*surface.context, program, ruleFuncId, fired)
@@ -674,7 +675,8 @@ bool setRuleVariable(ExecutionContext& ctx, ManagedHeap& heap, GcRoots* roots, c
   return ruleVarSet(&ctx, &heap, roots, ctx.currentRuleFuncId, name, value);
 }
 
-bool isTruthy(const Value& value, const ProgramImage& program, const ManagedHeap* heap) {
+bool isTruthy(const Value& value, const ProgramImage& program, const ManagedHeap* heap,
+              const TypeRegistry* types) {
   switch (value.tag()) {
   case ValueTag::Unknown:
   case ValueTag::Void:
@@ -690,8 +692,12 @@ bool isTruthy(const Value& value, const ProgramImage& program, const ManagedHeap
     const uint32_t index = value.borrowedStringIndex();
     return index < program.strings.size() && program.strings[index].length > 0;
   }
+  case ValueTag::Struct: {
+    const NativeStructExists exists =
+        types != nullptr ? types->nativeStructExists(value.typeId()) : nullptr;
+    return exists == nullptr || exists(value);
+  }
   case ValueTag::Enum:
-  case ValueTag::Struct:
   case ValueTag::Function:
   case ValueTag::Handle:
     return true;
@@ -925,7 +931,8 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
       if (!popValue(state, value)) {
         return fault(ErrorCode::StackUnderflow);
       }
-      frame.pc = isTruthy(value, program, surface.heap) ? frame.pc + 1 : addRel(frame.pc, ins.a);
+      frame.pc = isTruthy(value, program, surface.heap, surface.types) ? frame.pc + 1
+                                                                       : addRel(frame.pc, ins.a);
       break;
     }
 
@@ -934,7 +941,8 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
       if (!popValue(state, value)) {
         return fault(ErrorCode::StackUnderflow);
       }
-      frame.pc = isTruthy(value, program, surface.heap) ? addRel(frame.pc, ins.a) : frame.pc + 1;
+      frame.pc = isTruthy(value, program, surface.heap, surface.types) ? addRel(frame.pc, ins.a)
+                                                                       : frame.pc + 1;
       break;
     }
 
