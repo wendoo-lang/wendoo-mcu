@@ -8,11 +8,11 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  toast,
 } from "@wendoo/ui";
 import { buildWodalProgramImage } from "@wendoo/wodal";
 import { MoreHorizontal, Plus, Usb } from "lucide-react";
 import { useId, useRef, useState, useSyncExternalStore } from "react";
-import { toast } from "sonner";
 import { useMicrobitSimEnvironment } from "@/contexts/microbit-sim-environment";
 import { microbitFirmwareHex, microbitFirmwareMetadata } from "@/services/firmware-asset";
 import { patchFirmwareForImage, programJsonFromImage } from "@/services/firmware-deploy";

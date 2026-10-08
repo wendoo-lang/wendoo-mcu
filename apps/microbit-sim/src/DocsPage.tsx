@@ -1,10 +1,11 @@
 import { DocsPage as SharedDocsPage } from "@wendoo/docs";
+import { Toaster } from "@wendoo/ui";
 import { useMemo, useSyncExternalStore } from "react";
 import { createMicrobitTileVisualResolver, microbitDataTypeIcons, microbitDataTypeNames } from "./brain/editor-config";
 import { useMicrobitSimEnvironment } from "./contexts/microbit-sim-environment";
 import { createDocsTileCatalog, createMicrobitDocsRegistry } from "./docs/docs-registry";
 
-/** Full-page documentation view served at `/docs`. */
+/** Full-page documentation view served at `/docs`, with the toast region the docs announce through. */
 export function DocsPage() {
   const store = useMicrobitSimEnvironment();
   // Rebuild the registry and library list when user tiles install so a library added while this page
@@ -37,6 +38,8 @@ export function DocsPage() {
       resolveTileVisual={resolveTileVisual}
       backLabel="Simulator"
       backHref="/"
-    />
+    >
+      <Toaster />
+    </SharedDocsPage>
   );
 }

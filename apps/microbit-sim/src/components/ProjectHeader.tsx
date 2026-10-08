@@ -13,6 +13,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   ExtensionBrowserDialog,
+  toast,
 } from "@wendoo/ui";
 import {
   Blocks,
@@ -29,7 +30,6 @@ import {
   Upload,
 } from "lucide-react";
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
-import { toast } from "sonner";
 import { useMicrobitSimEnvironment } from "@/contexts/microbit-sim-environment";
 import { collectMicrobitLibraryUninstallImpact } from "@/services/library-uninstall-guard";
 import { microbitEmbeddedExtensions } from "@/services/microbit-embedded-extensions";

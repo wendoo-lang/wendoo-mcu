@@ -1,5 +1,5 @@
+import { toast } from "@wendoo/ui";
 import { useEffect } from "react";
-import { toast } from "sonner";
 import { useMicrobitSimEnvironment } from "../contexts/microbit-sim-environment";
 import type { ResolutionWarningsToastPresenter, UnresolvedLibrariesToast } from "../services/resolution-warnings-toast";
 import { startResolutionWarningsToast } from "../services/resolution-warnings-toast";

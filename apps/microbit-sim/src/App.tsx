@@ -1,7 +1,7 @@
 import { AssistantProvider } from "@wendoo/assistant-panel";
 import { DocsSidebar, DocsSidebarProvider } from "@wendoo/docs";
+import { Toaster } from "@wendoo/ui";
 import { useMemo, useSyncExternalStore } from "react";
-import { Toaster } from "sonner";
 import { createMicrobitTileVisualResolver, microbitDataTypeIcons, microbitDataTypeNames } from "./brain/editor-config";
 import { BrainList } from "./components/BrainList";
 import { BridgePanel } from "./components/BridgePanel";

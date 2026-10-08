@@ -1,5 +1,5 @@
 import type { LibraryOfferToasts } from "@wendoo/bridge-app";
-import { toast } from "sonner";
+import { toast } from "@wendoo/ui";
 
 /**
  * How adding a library the assistant offered reports what happened: one
