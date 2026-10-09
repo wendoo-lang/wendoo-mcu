@@ -670,6 +670,42 @@ bool constValueToRuntime(const ConstValue& constant, Value& out) {
   return false;
 }
 
+bool materializeConstValue(const ProgramImage& program, const ConstValue& constant,
+                           ManagedHeap* heap, GcRoots* roots, Value& out, ErrorCode& err) {
+  if (constant.kind != ConstValueKind::Struct) {
+    if (!constValueToRuntime(constant, out)) {
+      err = ErrorCode::ScriptError;
+      return false;
+    }
+    return true;
+  }
+  // The fields are scalar or borrowed (number/buffer/string), so none
+  // allocates and the struct cannot be collected between its allocation and
+  // the slot writes; a nested container field is unsupported and refused via
+  // constValueToRuntime.
+  if (heap == nullptr) {
+    err = ErrorCode::HostError;
+    return false;
+  }
+  const uint32_t fieldCount = constant.structVal.fieldsCount;
+  Value fresh;
+  if (!heap->newStruct(constant.structVal.typeIdx, fieldCount, roots, fresh)) {
+    err = ErrorCode::StackOverflow;
+    return false;
+  }
+  StructObject* obj = heap->structOf(fresh);
+  for (uint32_t i = 0; i < fieldCount; i++) {
+    Value field;
+    if (!constValueToRuntime(program.constValues[constant.structVal.fieldsOffset + i], field)) {
+      err = ErrorCode::ScriptError;
+      return false;
+    }
+    heap->structSet(obj, i, field);
+  }
+  out = fresh;
+  return true;
+}
+
 bool setRuleVariable(ExecutionContext& ctx, ManagedHeap& heap, GcRoots* roots, const Value& name,
                      const Value& value) {
   return ruleVarSet(&ctx, &heap, roots, ctx.currentRuleFuncId, name, value);
@@ -816,33 +852,11 @@ RunResult runExecution(ExecutionState& state, const ProgramImage& program,
       if (ins.a >= program.constantPools.valueCount) {
         return fault(ErrorCode::ScriptError);
       }
-      const ConstValue& constant = program.constValues[ins.a];
       Value value;
-      if (constant.kind == ConstValueKind::Struct) {
-        // Materialize a baked struct constant into a fresh managed struct whose
-        // slots are its inline field values. The fields are scalar or borrowed
-        // (number/buffer/string), so none allocates and the struct cannot be
-        // collected between its allocation and the slot writes; a nested
-        // container field is unsupported and faults via constValueToRuntime.
-        if (surface.heap == nullptr) {
-          return fault(ErrorCode::HostError);
-        }
-        const uint32_t fieldCount = constant.structVal.fieldsCount;
-        if (!surface.heap->newStruct(constant.structVal.typeIdx, fieldCount, surface.roots,
-                                     value)) {
-          return fault(ErrorCode::StackOverflow);
-        }
-        StructObject* obj = surface.heap->structOf(value);
-        for (uint32_t i = 0; i < fieldCount; i++) {
-          Value field;
-          if (!constValueToRuntime(program.constValues[constant.structVal.fieldsOffset + i],
-                                   field)) {
-            return fault(ErrorCode::ScriptError);
-          }
-          surface.heap->structSet(obj, i, field);
-        }
-      } else if (!constValueToRuntime(constant, value)) {
-        return fault(ErrorCode::ScriptError);
+      ErrorCode materializeError = ErrorCode::ScriptError;
+      if (!materializeConstValue(program, program.constValues[ins.a], surface.heap, surface.roots,
+                                 value, materializeError)) {
+        return fault(materializeError);
       }
       if (!pushValue(state, value)) {
         return fault(ErrorCode::StackOverflow);

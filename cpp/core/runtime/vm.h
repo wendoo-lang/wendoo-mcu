@@ -182,6 +182,20 @@ bool setRuleVariable(ExecutionContext& ctx, ManagedHeap& heap, GcRoots* roots, c
                      const Value& value);
 
 /**
+ * Materialize the constant-pool entry `constant` of `program` into `out` as a
+ * value no other holder shares: a struct constant becomes a new managed
+ * struct typed by the constant's type-table index, allocated from `heap`
+ * over `roots`, its slots the constant's inline field values; any other
+ * constant converts as {@link constValueToRuntime}. Returns false, with
+ * `err` set and `out` unspecified: `HostError` for a struct constant with a
+ * null `heap`, `StackOverflow` when the heap cannot back the struct, and
+ * `ScriptError` for a constant, or a struct constant's field, that
+ * {@link constValueToRuntime} refuses.
+ */
+bool materializeConstValue(const ProgramImage& program, const ConstValue& constant,
+                           ManagedHeap* heap, GcRoots* roots, Value& out, ErrorCode& err);
+
+/**
  * Push the entry frame for `funcId` onto `state` and seed its locals from
  * `args` (excess args are dropped; remaining local slots are nil). The state
  * must have its stack regions bound. Fails with `ErrorCode::HostError` when

@@ -171,6 +171,12 @@ inline constexpr uint32_t kConformanceAnchorFieldX = 0;
 /** Field id of the `Anchor` type's `y` field. Mirrors `ConformanceAnchorField.Y`. */
 inline constexpr uint32_t kConformanceAnchorFieldY = 1;
 
+/**
+ * Field id of the `Anchor` type's `at` field, a `Point` snapshot of the
+ * anchor's `x` and `y`. Mirrors `ConformanceAnchorField.At`.
+ */
+inline constexpr uint32_t kConformanceAnchorFieldAt = 2;
+
 /** Field id of the `Target` type's `value` field. Mirrors `ConformanceTargetField.Value`. */
 inline constexpr uint32_t kConformanceTargetFieldValue = 0;
 
@@ -230,10 +236,13 @@ inline constexpr uint32_t kConformanceTargetFirstToken = 1;
 /** Host token of the target object every later resolution returns. */
 inline constexpr uint32_t kConformanceTargetLaterToken = 2;
 
+struct ConformancePointEnv;
+
 /**
  * Mutable host state behind the profile's native struct types: the anchor
- * object's fields and liveness, which `Anchor` and `Marker` values share, and
- * the target resolution counter. The corpus harness
+ * object's fields and liveness, which `Anchor` and `Marker` values share, the
+ * target resolution counter, and the construction env the `Anchor` type's
+ * `at` hooks build and read `Point` values through. The corpus harness
  * installs a fresh instance per replay through
  * {@link gConformanceNativeEnv}, so two runs of one program observe the same
  * state.
@@ -248,6 +257,8 @@ struct ConformanceNativeEnv {
   bool anchorDestroyed = false;
   /** How many target resolutions have run; the first returns the first object. */
   uint32_t targetResolutions = 0;
+  /** Heap, type registry, and roots the `at` field hooks build and read `Point` values through. */
+  const ConformancePointEnv* pointEnv = nullptr;
 };
 
 /**
@@ -613,8 +624,11 @@ inline ConformanceNativeEnv* resolveAnchorEnv() {
   return env;
 }
 
-/** Reads an `Anchor` field off the live anchor host object; nil without one or a declared
- * field. */
+/**
+ * Reads an `Anchor` field off the live anchor host object, `at` as a fresh
+ * `Point` snapshot of its `x` and `y`; nil without one, a declared field, or,
+ * for `at`, a construction env that can build the snapshot.
+ */
 inline Value anchorFieldGetter(const Value& /*source*/, uint32_t fieldId) {
   const ConformanceNativeEnv* env = resolveAnchorEnv();
   if (env == nullptr) {
@@ -626,14 +640,54 @@ inline Value anchorFieldGetter(const Value& /*source*/, uint32_t fieldId) {
   if (fieldId == kConformanceAnchorFieldY) {
     return Value::number(env->anchorY);
   }
+  if (fieldId == kConformanceAnchorFieldAt && env->pointEnv != nullptr) {
+    return buildConformancePointAt(*env->pointEnv, env->anchorX, env->anchorY);
+  }
   return kNilValue;
 }
 
-/** Writes an `Anchor` field of the live anchor host object; rejects without one, a number, or a
- * declared field. */
+/**
+ * Reads the number in field slot `fieldId` of a managed `Point` value through
+ * `env`'s heap into `out`. Returns false when the env is incomplete or the
+ * value carries no such number.
+ */
+inline bool managedPointNumber(const ConformancePointEnv& env, const Value& value, uint32_t fieldId,
+                               mc_number_t& out) {
+  if (env.heap == nullptr || env.types == nullptr || !value.isStruct() ||
+      !env.types->isManagedStructType(value.typeId())) {
+    return false;
+  }
+  const Value field = env.heap->structGet(env.heap->structOf(value), fieldId);
+  if (!field.isNumber()) {
+    return false;
+  }
+  out = field.asNumber();
+  return true;
+}
+
+/**
+ * Writes an `Anchor` field of the live anchor host object, `at` by taking both
+ * fields of a `Point`; rejects without one, a value of the field's kind, or a
+ * declared field.
+ */
 inline bool anchorFieldSetter(const Value& /*source*/, uint32_t fieldId, const Value& value) {
   ConformanceNativeEnv* env = resolveAnchorEnv();
-  if (env == nullptr || !value.isNumber()) {
+  if (env == nullptr) {
+    return false;
+  }
+  if (fieldId == kConformanceAnchorFieldAt) {
+    mc_number_t x = 0;
+    mc_number_t y = 0;
+    if (env->pointEnv == nullptr ||
+        !managedPointNumber(*env->pointEnv, value, kConformancePointFieldX, x) ||
+        !managedPointNumber(*env->pointEnv, value, kConformancePointFieldY, y)) {
+      return false;
+    }
+    env->anchorX = x;
+    env->anchorY = y;
+    return true;
+  }
+  if (!value.isNumber()) {
     return false;
   }
   if (fieldId == kConformanceAnchorFieldX) {

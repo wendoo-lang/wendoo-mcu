@@ -168,7 +168,9 @@ struct ExecutionContext {
    *
    * Each variable slot is seeded from the matching `variableInitValues` entry,
    * an index into `constValues` or {@link kNoVariableInit}. A slot with no
-   * entry, or whose entry is the sentinel, is initialized to nil.
+   * entry, or whose entry is the sentinel or a struct constant, is
+   * initialized to nil; the caller must materialize a struct-constant slot's
+   * seed after binding.
    */
   bool bindSlots(RegionArena& arena, uint32_t variableCount, uint32_t callSiteCount,
                  uint32_t slotStride = 0, uint32_t systemCount = 0, uint32_t ruleRecordCount = 0,

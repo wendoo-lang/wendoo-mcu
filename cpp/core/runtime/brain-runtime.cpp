@@ -51,6 +51,24 @@ Status BrainRuntime::startup() {
                                    program_.variableInitValues, program_.constValues)) {
     return Status::fail(ErrorCode::HostError);
   }
+  // A slot whose starting value is a struct constant takes a fresh managed
+  // struct of its own, so no two slots, and no two startups over this image,
+  // share a struct cell. Each materialized seed is a root through the bound
+  // variable table before the next one allocates.
+  for (uint32_t i = 0; i < variableCount && i < program_.variableInitValues.size(); i++) {
+    const uint32_t initIdx = program_.variableInitValues[i];
+    if (initIdx == kNoVariableInit || initIdx >= program_.constValues.size() ||
+        program_.constValues[initIdx].kind != ConstValueKind::Struct) {
+      continue;
+    }
+    Value seeded;
+    ErrorCode seedError = ErrorCode::ScriptError;
+    if (!materializeConstValue(program_, program_.constValues[initIdx], surface_.heap,
+                               surface_.roots, seeded, seedError)) {
+      return Status::fail(seedError);
+    }
+    surface_.context->variables[i] = seeded;
+  }
   // Bind the program's rule-ancestor edges so rule-variable reads (including the
   // WHEN-result accessor) can walk from a nested rule up to its ancestors.
   if (program_.hasRuleAncestors) {
