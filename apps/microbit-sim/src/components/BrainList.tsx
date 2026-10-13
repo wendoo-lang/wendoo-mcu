@@ -8,6 +8,8 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  downloadTextFile,
+  pickFile,
   toast,
 } from "@wendoo/ui";
 import { buildWodalProgramImage } from "@wendoo/wodal";
@@ -18,8 +20,6 @@ import { microbitFirmwareHex, microbitFirmwareMetadata } from "@/services/firmwa
 import { patchFirmwareForImage, programJsonFromImage } from "@/services/firmware-deploy";
 import { isRemovableDriveMissingError } from "@/services/folder-host-mode";
 import { isWebUsbSupported, microbitFlasher } from "@/services/microbit-flasher";
-import { downloadHexFile, downloadTextFile } from "@/utils/file-download";
-import { pickFile } from "@/utils/file-upload";
 import {
   BrainDiagnosticsList,
   BrainErrorBadge,
@@ -140,7 +140,7 @@ export function BrainList() {
     if (hex === undefined) {
       return;
     }
-    downloadHexFile(hex, `${filenameSlug(brainName)}.hex`);
+    downloadTextFile(hex, `${filenameSlug(brainName)}.hex`, "application/octet-stream");
   }
 
   /** Downloads the brain's built program as a JSON `.mcprogram`. */

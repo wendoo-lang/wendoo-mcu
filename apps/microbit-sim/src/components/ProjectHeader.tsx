@@ -12,7 +12,9 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  downloadTextFile,
   ExtensionBrowserDialog,
+  pickFile,
   toast,
 } from "@wendoo/ui";
 import {
@@ -43,8 +45,6 @@ import {
   microbitLibraryDisplayName,
   uninstallMicrobitExtension,
 } from "@/services/microbit-extension-browser";
-import { downloadTextFile } from "@/utils/file-download";
-import { pickFile } from "@/utils/file-upload";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { GithubIcon } from "./GithubIcon";
 import { InlineRename } from "./InlineRename";
