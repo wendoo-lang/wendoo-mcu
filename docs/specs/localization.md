@@ -250,7 +250,7 @@ sources, so a per-locale library channel slots in without reshaping the registry
   follows VS Code's display language. VS Code icon tokens (`$(warning)` and kin) embed
   in templates verbatim and must survive translation and pseudo-localization unaltered.
 - **Compilers:** template registries + structured params as above. The ts-compiler's
-  learner-facing config diagnostics are included; its internal/tooling output is not.
+  user-facing config diagnostics are included; its internal/tooling output is not.
 - **app-host and service-api:** their diagnostic/result messages reach users through app
   toasts and dialogs; they join the code+params contract with their own template
   registries.
